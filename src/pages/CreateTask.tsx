@@ -26,7 +26,7 @@ const CreateTask: React.FC = () => {
     const loadFamilyMembers = async () => {
       try {
         setLoadingMembers(true);
-        const response = await apiGet<FamilyMember[]>('/api/family/members');
+        const response = await apiGet<FamilyMember[]>(API_ENDPOINTS.FAMILY.MEMBERS);
        if (response.success) {
          const members = response.data || [];
           

@@ -43,7 +43,7 @@ const FamilyManagement: React.FC = () => {
         setError('');
         
         // 加載家庭成員數據
-         const membersResponse = await apiGet<FamilyMember[]>('/api/family/members');
+         const membersResponse = await apiGet<FamilyMember[]>(API_ENDPOINTS.FAMILY.MEMBERS);
          if (membersResponse.success && membersResponse.data) {
            setFamilyMembers(membersResponse.data);
         } else {
@@ -51,7 +51,7 @@ const FamilyManagement: React.FC = () => {
         }
         
         // 加載邀請碼數據
-         const invitesResponse = await apiGet<InviteCode[]>('/api/family/invites');
+         const invitesResponse = await apiGet<InviteCode[]>(API_ENDPOINTS.FAMILY.INVITES);
          if (invitesResponse.success && invitesResponse.data) {
            setInviteCodes(invitesResponse.data);
         } else {
