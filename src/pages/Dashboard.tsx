@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Users, Settings, LogOut, Filter } from 'lucide-react';
+import { Plus, Users, Settings, LogOut, Filter, Database } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui';
 import Calendar from '../components/Calendar';
@@ -143,6 +143,9 @@ const Dashboard: React.FC = () => {
               </Link>
               <Link to="/family" className="text-gray-600 hover:text-gray-900">
                 <Users className="h-5 w-5" />
+              </Link>
+              <Link to="/migration" className="text-gray-600 hover:text-gray-900" title="数据迁移">
+                <Database className="h-5 w-5" />
               </Link>
               <Link to="/profile" className="text-gray-600 hover:text-gray-900">
                 <Settings className="h-5 w-5" />

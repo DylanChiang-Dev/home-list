@@ -8,6 +8,7 @@ import TaskDetail from '../pages/TaskDetail';
 import CreateTask from '../pages/CreateTask';
 import FamilyManagement from '../pages/FamilyManagement';
 import Profile from '../pages/Profile';
+import DataMigration from '../components/DataMigration';
 
 // 受保护的路由组件
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -104,6 +105,14 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <Profile />
+      </ProtectedRoute>
+    )
+  },
+  {
+    path: '/migration',
+    element: (
+      <ProtectedRoute>
+        <DataMigration />
       </ProtectedRoute>
     )
   },

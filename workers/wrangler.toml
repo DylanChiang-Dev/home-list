@@ -1,0 +1,36 @@
+name = "home-list-api"
+main = "src/index.ts"
+compatibility_date = "2024-01-01"
+compatibility_flags = ["nodejs_compat"]
+
+# D1数据库绑定
+[[d1_databases]]
+binding = "DB"
+database_name = "home-list-db"
+database_id = "ef7dba0e-5b8c-4456-a1f3-b5b07f7fefa3"
+
+# KV存储绑定
+[[kv_namespaces]]
+binding = "CACHE"
+id = "3badd56b26fc44e486a23c542a2d7b8c"
+
+# 环境变量
+[vars]
+JWT_SECRET = "your-jwt-secret-key-replace-in-production"
+ENVIRONMENT = "development"
+CORS_ORIGIN = "https://home-list.pages.dev"
+
+# 生产环境配置
+[env.production]
+route = "api.your-domain.com/*"
+
+[env.production.vars]
+ENVIRONMENT = "production"
+CORS_ORIGIN = "https://home-list.pages.dev"
+
+# 开发环境配置
+[env.development]
+
+[env.development.vars]
+ENVIRONMENT = "development"
+CORS_ORIGIN = "https://home-list.pages.dev,http://localhost:5173"
