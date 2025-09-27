@@ -6,6 +6,7 @@ import { Button } from '../components/ui';
 import Calendar from '../components/Calendar';
 import TaskPanel from '../components/TaskPanel';
 import { Task, TaskFilter, TaskTypeLabels } from '../types/task';
+import { apiGet, apiPut } from '../utils/api';
 
 const Dashboard: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -15,6 +16,8 @@ const Dashboard: React.FC = () => {
     type: 'all',
     assignee: 'all'
   });
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   
@@ -39,23 +42,30 @@ const Dashboard: React.FC = () => {
   // 任务数据
   const [tasks, setTasks] = useState<Task[]>([]);
 
-  // 从localStorage加载任务数据
+  // 从API加载任务数据
   useEffect(() => {
-    const savedTasks = localStorage.getItem('tasks');
-    if (savedTasks) {
+    const loadTasks = async () => {
       try {
-        const parsedTasks = JSON.parse(savedTasks);
-        setTasks(parsedTasks);
+        setLoading(true);
+        setError(null);
+        const response = await apiGet<Task[]>('/api/tasks');
+        if (response.success) {
+          setTasks(response.data || []);
+        } else {
+          setError('加載任務失敗');
+        }
       } catch (error) {
-        console.error('Error: Failed to load tasks from storage');
+        console.error('Error loading tasks:', error);
+        setError('加載任務時發生錯誤');
+      } finally {
+        setLoading(false);
       }
-    }
-  }, []);
+    };
 
-  // 保存任务数据到localStorage
-  useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
+    if (user) {
+      loadTasks();
+    }
+  }, [user]);
 
   // 获取选中日期的任务
   const getTasksForDate = (date: Date) => {
@@ -109,19 +119,31 @@ const Dashboard: React.FC = () => {
   });
 
   // 更新任务状态
-  const updateTaskStatus = (taskId: string, newStatus: Task['status']) => {
-    setTasks(prevTasks => 
-      prevTasks.map(task => 
-        task.id === taskId 
-          ? { 
-              ...task, 
-              status: newStatus,
-              completedAt: newStatus === 'completed' ? new Date().toISOString() : undefined,
-              completerName: newStatus === 'completed' ? user?.name : undefined
-            }
-          : task
-      )
-    );
+  const updateTaskStatus = async (taskId: string, newStatus: Task['status']) => {
+    try {
+      const updateData = {
+        status: newStatus,
+        completedAt: newStatus === 'completed' ? new Date().toISOString() : undefined,
+        completerName: newStatus === 'completed' ? user?.name : undefined
+      };
+      
+      const response = await apiPut<Task>(`/api/tasks/${taskId}`, updateData);
+      
+      if (response.success && response.data) {
+        setTasks(prevTasks => 
+          prevTasks.map(task => 
+            task.id === taskId 
+              ? response.data!
+              : task
+          )
+        );
+      } else {
+        setError('更新任務狀態失敗');
+      }
+    } catch (error) {
+      console.error('Error updating task status:', error);
+      setError('更新任務狀態時發生錯誤');
+    }
   };
 
   return (
@@ -163,6 +185,19 @@ const Dashboard: React.FC = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Error Message */}
+        {error && (
+          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-md">
+            <p className="text-red-800">{error}</p>
+          </div>
+        )}
+        
+        {/* Loading State */}
+        {loading ? (
+          <div className="flex justify-center items-center py-12">
+            <div className="text-gray-500">載入中...</div>
+          </div>
+        ) : (
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Side - Calendar */}
           <div className="lg:col-span-2">
@@ -238,6 +273,7 @@ const Dashboard: React.FC = () => {
             </div>
           </div>
         </div>
+        )}
       </main>
     </div>
   );

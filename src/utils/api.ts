@@ -42,11 +42,19 @@ export const getAuthHeaders = (): HeadersInit => {
   };
 };
 
+// API响应类型
+export interface ApiResponse<T = any> {
+  success: boolean;
+  data?: T;
+  error?: string;
+  status: number;
+}
+
 // API请求封装
 export const apiRequest = async <T>(
   url: string,
   options: RequestInit = {}
-): Promise<{ data?: T; error?: string; status: number }> => {
+): Promise<ApiResponse<T>> => {
   try {
     const response = await fetch(url, {
       headers: getAuthHeaders(),
@@ -56,18 +64,18 @@ export const apiRequest = async <T>(
     const data = await response.json();
 
     if (response.ok) {
-      return { data, status: response.status };
+      return { success: true, data, status: response.status };
     } else {
-      return { error: data.message || data.error || '请求失败', status: response.status };
+      return { success: false, error: data.message || data.error || '请求失败', status: response.status };
     }
   } catch (error) {
     console.error('API request failed:', error);
-    return { error: '网络错误，请稍后重试', status: 0 };
+    return { success: false, error: '网络错误，请稍后重试', status: 0 };
   }
 };
 
 // GET请求
-export const apiGet = <T>(url: string): Promise<{ data?: T; error?: string; status: number }> => {
+export const apiGet = <T>(url: string): Promise<ApiResponse<T>> => {
   return apiRequest<T>(url, { method: 'GET' });
 };
 
@@ -75,7 +83,7 @@ export const apiGet = <T>(url: string): Promise<{ data?: T; error?: string; stat
 export const apiPost = <T>(
   url: string,
   body?: any
-): Promise<{ data?: T; error?: string; status: number }> => {
+): Promise<ApiResponse<T>> => {
   return apiRequest<T>(url, {
     method: 'POST',
     body: body ? JSON.stringify(body) : undefined,
@@ -86,7 +94,7 @@ export const apiPost = <T>(
 export const apiPut = <T>(
   url: string,
   body?: any
-): Promise<{ data?: T; error?: string; status: number }> => {
+): Promise<ApiResponse<T>> => {
   return apiRequest<T>(url, {
     method: 'PUT',
     body: body ? JSON.stringify(body) : undefined,
@@ -94,6 +102,6 @@ export const apiPut = <T>(
 };
 
 // DELETE请求
-export const apiDelete = <T>(url: string): Promise<{ data?: T; error?: string; status: number }> => {
+export const apiDelete = <T>(url: string): Promise<ApiResponse<T>> => {
   return apiRequest<T>(url, { method: 'DELETE' });
 };

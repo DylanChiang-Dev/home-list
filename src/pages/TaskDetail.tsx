@@ -2,6 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, Save, X, Clock, User, Calendar, Flag, CheckCircle, Circle, Play, AlertCircle, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { apiGet, apiPut } from '../utils/api';
 
 interface Task {
   id: string;
@@ -28,24 +29,27 @@ const TaskDetail: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
-  // 从localStorage或API加载任务数据
+  // 从API加载任务数据
   useEffect(() => {
-    const loadTask = () => {
+    const loadTask = async () => {
+      if (!id) {
+        setError('任務ID不存在');
+        setLoading(false);
+        return;
+      }
+
       try {
-        const savedTasks = localStorage.getItem('tasks');
-        if (savedTasks && id) {
-          const tasks = JSON.parse(savedTasks);
-          const foundTask = tasks.find((t: Task) => t.id === id);
-          if (foundTask) {
-            setTask(foundTask);
-          } else {
-            setError('Task not found');
-          }
+        setLoading(true);
+        const response = await apiGet(`/api/tasks/${id}`);
+        
+        if (response.success && response.data) {
+          setTask(response.data as Task);
         } else {
-          setError('No data available');
+          setError('任務不存在');
         }
       } catch (err) {
-        setError('Error: Failed to load task data');
+        console.error('Error loading task:', err);
+        setError('載入任務時發生錯誤');
       } finally {
         setLoading(false);
       }
@@ -121,16 +125,63 @@ const TaskDetail: React.FC = () => {
   };
 
   const handleStatusChange = async (newStatus: 'pending' | 'in_progress' | 'completed') => {
-    setLoading(true);
-    console.error('Error: Task status update service unavailable');
-    setLoading(false);
+    if (!task || !id) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const updateData = {
+        status: newStatus,
+        ...(newStatus === 'completed' && { 
+          completedAt: new Date().toISOString(),
+          completerName: user?.name || 'Unknown User'
+        })
+      };
+      
+      const response = await apiPut(`/api/tasks/${id}`, updateData);
+      
+      if (response.success && response.data) {
+        setTask(response.data as Task);
+      } else {
+        setError('更新任務狀態失敗');
+      }
+    } catch (error) {
+      console.error('Error updating task status:', error);
+      setError('更新任務狀態時發生錯誤');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const handleSaveEdit = async () => {
-    setLoading(true);
-    console.error('Error: Task update service unavailable');
-    setIsEditing(false);
-    setLoading(false);
+    if (!task || !id) return;
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const updateData = {
+        title: editForm.title,
+        description: editForm.description,
+        priority: editForm.priority,
+        dueDate: editForm.dueDate || undefined
+      };
+      
+      const response = await apiPut(`/api/tasks/${id}`, updateData);
+      
+      if (response.success && response.data) {
+        setTask(response.data as Task);
+        setIsEditing(false);
+      } else {
+        setError('更新任務失敗');
+      }
+    } catch (error) {
+      console.error('Error updating task:', error);
+      setError('更新任務時發生錯誤');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const formatDate = (dateString: string) => {
@@ -175,6 +226,18 @@ const TaskDetail: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* 錯誤提示 */}
+      {error && (
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+              <p className="text-red-700">{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {loading ? (

@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, User, Calendar, AlertCircle, Repeat, Clock, Target } from 'lucide-react';
 import { Task, RecurringRule, TaskTypeLabels, TaskTypeColors } from '../types/task';
 import { useAuth } from '../contexts/AuthContext';
+import { apiGet, apiPost } from '../utils/api';
 
 interface FamilyMember {
   id: string;
@@ -14,40 +15,59 @@ const CreateTask: React.FC = () => {
   const navigate = useNavigate();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
   
   // 动态获取家庭成员数据
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  const [loadingMembers, setLoadingMembers] = useState(true);
   
-  // 获取家庭成员数据
+  // 从API获取家庭成员数据
   useEffect(() => {
-    const loadFamilyMembers = () => {
-      // 从localStorage获取家庭成员数据
-      const storedMembers = localStorage.getItem('familyMembers');
-      let members: FamilyMember[] = [];
-      
-      if (storedMembers) {
-        try {
-          members = JSON.parse(storedMembers);
-        } catch (error) {
-          console.error('Error: Failed to load family members data');
-          members = [];
+    const loadFamilyMembers = async () => {
+      try {
+        setLoadingMembers(true);
+        const response = await apiGet<FamilyMember[]>('/api/family/members');
+       if (response.success) {
+         const members = response.data || [];
+          
+          // 确保当前用户在家庭成员列表中
+          if (user && !members.find((m: FamilyMember) => m.id === user.id)) {
+            members.unshift({
+              id: user.id,
+              name: user.name,
+              email: user.email || 'user@example.com'
+            });
+          }
+          
+          setFamilyMembers(members);
+        } else {
+          // 如果API失败，至少包含當前用戶
+          if (user) {
+            setFamilyMembers([{
+              id: user.id,
+              name: user.name,
+              email: user.email || 'user@example.com'
+            }]);
+          }
         }
+      } catch (error) {
+        console.error('Error loading family members:', error);
+        // 如果API失敗，至少包含當前用戶
+        if (user) {
+          setFamilyMembers([{
+            id: user.id,
+            name: user.name,
+            email: user.email || 'user@example.com'
+          }]);
+        }
+      } finally {
+        setLoadingMembers(false);
       }
-      
-      // 确保当前用户在家庭成员列表中
-      if (user && !members.find(m => m.id === user.id)) {
-        members.unshift({
-          id: user.id,
-          name: user.name,
-          email: user.email || 'user@example.com'
-        });
-        localStorage.setItem('familyMembers', JSON.stringify(members));
-      }
-      
-      setFamilyMembers(members);
     };
     
-    loadFamilyMembers();
+    if (user) {
+      loadFamilyMembers();
+    }
   }, [user]);
   
   const [formData, setFormData] = useState({
@@ -193,43 +213,45 @@ const CreateTask: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
       return;
     }
 
-    // 创建新任务对象
-    const newTask: Omit<Task, 'id'> = {
-      title: formData.title,
-      description: formData.description,
-      status: 'pending',
-      priority: formData.priority,
-      type: formData.type,
-      assigneeId: formData.assigneeId,
-      creatorName: 'Current User',
-      assigneeName: familyMembers.find(m => m.id === formData.assigneeId)?.name || '未知用户',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      dueDate: formData.dueDate || undefined,
-      recurringRule: formData.recurringRule
-    };
+    try {
+      setLoading(true);
+      setError(null);
+      
+      // 创建新任务对象
+      const newTask = {
+        title: formData.title,
+        description: formData.description,
+        status: 'pending',
+        priority: formData.priority,
+        type: formData.type,
+        assigneeId: formData.assigneeId,
+        creatorName: user?.name || 'Current User',
+        assigneeName: familyMembers.find(m => m.id === formData.assigneeId)?.name || '未知用户',
+        dueDate: formData.dueDate || undefined,
+        recurringRule: formData.recurringRule
+      };
 
-    // 这里应该调用API创建任务，现在先存储到localStorage
-    const existingTasks = JSON.parse(localStorage.getItem('tasks') || '[]');
-    const taskWithId = {
-      ...newTask,
-      id: Date.now().toString() // 简单的ID生成
-    };
-    
-    existingTasks.push(taskWithId);
-    localStorage.setItem('tasks', JSON.stringify(existingTasks));
-    
-    console.log('创建任务:', taskWithId);
-    
-    // 成功创建后跳转
-    navigate('/dashboard');
+      const response = await apiPost<Task>('/api/tasks', newTask);
+     
+     if (response.success) {
+        console.log('任務創建成功:', response.data);
+        navigate('/dashboard');
+      } else {
+        setError('創建任務失敗');
+      }
+    } catch (error) {
+      console.error('Error creating task:', error);
+      setError('創建任務時發生錯誤');
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getPriorityColor = (priority: string) => {
@@ -249,6 +271,17 @@ const CreateTask: React.FC = () => {
       default: return '中优先级';
     }
   };
+
+  if (loadingMembers) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">載入家庭成員資料中...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -270,6 +303,18 @@ const CreateTask: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* 錯誤提示 */}
+      {error && (
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className="p-4 bg-red-50 border border-red-200 rounded-lg">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-red-500 mr-2" />
+              <p className="text-red-700">{error}</p>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="bg-white rounded-lg shadow-sm border border-gray-200">
@@ -771,9 +816,16 @@ const CreateTask: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                 >
-                  {loading ? '创建中...' : '创建任务'}
+                  {loading ? (
+                    <>
+                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
+                      創建中...
+                    </>
+                  ) : (
+                    '创建任务'
+                  )}
                 </button>
               </div>
             </form>

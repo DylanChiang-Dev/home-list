@@ -1,7 +1,8 @@
 import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Users, UserPlus, Copy, Check, Trash2, Crown, User, Mail, Calendar } from 'lucide-react';
+import { ArrowLeft, Users, UserPlus, Copy, Check, Trash2, Crown, User, Mail, Calendar, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
+import { apiGet, apiPost, apiDelete } from '../utils/api';
 
 interface FamilyMember {
   id: string;
@@ -27,6 +28,8 @@ const FamilyManagement: React.FC = () => {
   const [copiedCode, setCopiedCode] = useState<string | null>(null);
   const [showCreateInvite, setShowCreateInvite] = useState(false);
   const [newInviteMaxUses, setNewInviteMaxUses] = useState(5);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState('');
   
   const { user } = useAuth();
   // 动态获取家庭成员数据
@@ -34,51 +37,36 @@ const FamilyManagement: React.FC = () => {
   
   // 加载家庭成员数据
   useEffect(() => {
-    const loadFamilyMembers = () => {
-      const storedMembers = localStorage.getItem('familyMembers');
-      let members: FamilyMember[] = [];
-      
-      if (storedMembers) {
-        try {
-          const parsedMembers = JSON.parse(storedMembers);
-          // 转换为FamilyMember格式，添加缺失的字段
-          members = parsedMembers.map((member: any) => ({
-            id: member.id,
-            name: member.name,
-            email: member.email || 'user@example.com',
-            role: member.id === user?.id ? 'admin' : 'member',
-            joinedAt: member.joinedAt || new Date().toISOString().split('T')[0],
-            tasksCount: member.tasksCount || 0,
-            completedTasks: member.completedTasks || 0
-          }));
-        } catch (error) {
-          console.error('Error: Failed to load family members data');
-          members = [];
+    const loadData = async () => {
+      try {
+        setLoading(true);
+        setError('');
+        
+        // 加載家庭成員數據
+         const membersResponse = await apiGet<FamilyMember[]>('/api/family/members');
+         if (membersResponse.success && membersResponse.data) {
+           setFamilyMembers(membersResponse.data);
+        } else {
+          throw new Error(membersResponse.error || '加載家庭成員失敗');
         }
+        
+        // 加載邀請碼數據
+         const invitesResponse = await apiGet<InviteCode[]>('/api/family/invites');
+         if (invitesResponse.success && invitesResponse.data) {
+           setInviteCodes(invitesResponse.data);
+        } else {
+          // 邀請碼加載失敗不阻止頁面顯示，只記錄錯誤
+          console.error('加載邀請碼失敗:', invitesResponse.error);
+        }
+      } catch (err) {
+        console.error('加載數據失敗:', err);
+        setError(err.message || '加載數據失敗');
+      } finally {
+        setLoading(false);
       }
-      
-      // 确保当前用户在家庭成员列表中
-      if (user && !members.find(m => m.id === user.id)) {
-        members.unshift({
-          id: user.id,
-          name: user.name,
-          email: user.email || 'user@example.com',
-          role: 'admin',
-          joinedAt: new Date().toISOString().split('T')[0],
-          tasksCount: 0,
-          completedTasks: 0
-        });
-        localStorage.setItem('familyMembers', JSON.stringify(members.map(m => ({
-          id: m.id,
-          name: m.name,
-          email: m.email
-        }))));
-      }
-      
-      setFamilyMembers(members);
     };
     
-    loadFamilyMembers();
+    loadData();
   }, [user]);
   
   const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
@@ -93,14 +81,40 @@ const FamilyManagement: React.FC = () => {
     }
   };
 
-  const handleCreateInvite = () => {
-    console.error('Error: Invite code creation service unavailable');
-    setShowCreateInvite(false);
-    setNewInviteMaxUses(5);
+  const handleCreateInvite = async () => {
+    try {
+      setError('');
+      const response = await apiPost<InviteCode>('/api/family/invites', {
+         maxUses: newInviteMaxUses
+       });
+       
+       if (response.success && response.data) {
+         setInviteCodes([response.data, ...inviteCodes]);
+        setShowCreateInvite(false);
+        setNewInviteMaxUses(5);
+      } else {
+        throw new Error(response.error || '創建邀請碼失敗');
+      }
+    } catch (err) {
+      console.error('創建邀請碼失敗:', err);
+      setError(err.message || '創建邀請碼失敗');
+    }
   };
 
-  const handleDeleteInvite = (id: string) => {
-    setInviteCodes(prev => prev.filter(code => code.id !== id));
+  const handleDeleteInvite = async (id: string) => {
+    try {
+      setError('');
+      const response = await apiDelete(`/api/family/invites/${id}`);
+      
+      if (response.success) {
+        setInviteCodes(inviteCodes.filter(invite => invite.id !== id));
+      } else {
+        throw new Error(response.error || '刪除邀請碼失敗');
+      }
+    } catch (err) {
+      console.error('刪除邀請碼失敗:', err);
+      setError(err.message || '刪除邀請碼失敗');
+    }
   };
 
   const getCompletionRate = (completed: number, total: number) => {
@@ -115,6 +129,17 @@ const FamilyManagement: React.FC = () => {
   const isMaxUsed = (usedCount: number, maxUses: number) => {
     return usedCount >= maxUses;
   };
+
+  if (loading) {
+    return (
+      <div className="min-h-screen bg-gray-50 flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-600">加載中...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -136,6 +161,18 @@ const FamilyManagement: React.FC = () => {
           </div>
         </div>
       </header>
+
+      {/* 錯誤提示 */}
+      {error && (
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 pt-4">
+          <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+            <div className="flex items-center">
+              <AlertCircle className="w-5 h-5 text-red-600 mr-2" />
+              <span className="text-red-800">{error}</span>
+            </div>
+          </div>
+        </div>
+      )}
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* 标签页导航 */}
