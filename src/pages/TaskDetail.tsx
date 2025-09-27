@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { ArrowLeft, Edit, Save, X, Clock, User, Calendar, Flag, CheckCircle, Circle, Play, AlertCircle, Check } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { apiGet, apiPut } from '../utils/api';
+import { apiGet, apiPut, API_ENDPOINTS } from '../utils/api';
 
 interface Task {
   id: string;
@@ -47,7 +47,7 @@ const TaskDetail: React.FC = () => {
 
       try {
         setLoading(true);
-        const response = await apiGet(`/api/tasks/${id}`);
+        const response = await apiGet(API_ENDPOINTS.TASKS.DETAIL(id));
         
         if (response.success && response.data) {
           setTask(response.data as Task);
@@ -146,7 +146,7 @@ const TaskDetail: React.FC = () => {
         })
       };
       
-      const response = await apiPut(`/api/tasks/${id}`, updateData);
+      const response = await apiPut(API_ENDPOINTS.TASKS.UPDATE(id), updateData);
       
       if (response.success && response.data) {
         setTask(response.data as Task);
@@ -175,7 +175,7 @@ const TaskDetail: React.FC = () => {
         dueDate: editForm.dueDate || undefined
       };
       
-      const response = await apiPut(`/api/tasks/${id}`, updateData);
+      const response = await apiPut(API_ENDPOINTS.TASKS.UPDATE(id), updateData);
       
       if (response.success && response.data) {
         setTask(response.data as Task);

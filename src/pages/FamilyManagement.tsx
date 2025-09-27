@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Users, UserPlus, Copy, Check, Trash2, Crown, User, Mail, Calendar, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { apiGet, apiPost, apiDelete } from '../utils/api';
+import { apiGet, apiPost, apiDelete, API_ENDPOINTS } from '../utils/api';
 
 interface FamilyMember {
   id: string;
@@ -84,7 +84,7 @@ const FamilyManagement: React.FC = () => {
   const handleCreateInvite = async () => {
     try {
       setError('');
-      const response = await apiPost<InviteCode>('/api/family/invites', {
+      const response = await apiPost<InviteCode>(API_ENDPOINTS.FAMILY.INVITES, {
          maxUses: newInviteMaxUses
        });
        
@@ -104,7 +104,7 @@ const FamilyManagement: React.FC = () => {
   const handleDeleteInvite = async (id: string) => {
     try {
       setError('');
-      const response = await apiDelete(`/api/family/invites/${id}`);
+      const response = await apiDelete(API_ENDPOINTS.FAMILY.DELETE_INVITE(id));
       
       if (response.success) {
         setInviteCodes(inviteCodes.filter(invite => invite.id !== id));

@@ -26,6 +26,8 @@ export const API_ENDPOINTS = {
     MEMBERS: `${API_BASE_URL}/api/family/members`,
     INVITE: `${API_BASE_URL}/api/family/invite`,
     LEAVE: `${API_BASE_URL}/api/family/leave`,
+    INVITES: `${API_BASE_URL}/api/family/invites`,
+    DELETE_INVITE: (id: string) => `${API_BASE_URL}/api/family/invites/${id}`,
   },
   // 数据迁移
   MIGRATION: {

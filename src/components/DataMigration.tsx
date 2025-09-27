@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, Download, AlertCircle, CheckCircle, Loader2 } from 'lucide-react';
-import { apiPost } from '../utils/api';
+import { apiPost, API_ENDPOINTS } from '../utils/api';
 
 interface MigrationData {
   tasks: any[];
@@ -103,7 +103,7 @@ const DataMigration: React.FC<DataMigrationProps> = ({ onMigrationComplete }) =>
     try {
       const data = JSON.parse(jsonData);
       
-      const result = await apiPost('/api/migration/import', data);
+      const result = await apiPost(API_ENDPOINTS.MIGRATION.IMPORT, data);
       
       if (result.error) {
         setImportStatus({

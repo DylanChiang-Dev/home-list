@@ -29,9 +29,10 @@ app.use('*', prettyJSON());
 // CORS配置
 app.use('*', async (c, next) => {
   const corsOrigin = c.env.CORS_ORIGIN || 'http://localhost:5173';
+  const allowedOrigins = corsOrigin.split(',').map(origin => origin.trim());
   
   return cors({
-    origin: corsOrigin,
+    origin: allowedOrigins,
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
