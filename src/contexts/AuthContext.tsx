@@ -1,5 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
-import { apiPost, apiPut, apiGet, API_ENDPOINTS } from '../utils/api';
+import { apiPost, apiPut, apiGet, API_ENDPOINTS, LoginResponse, RegisterResponse, UserMeResponse } from '../utils/api';
 
 // 用户类型定义
 export interface User {
@@ -47,7 +47,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const originalToken = localStorage.getItem('authToken');
       localStorage.setItem('authToken', token);
       
-      const response = await apiGet(API_ENDPOINTS.AUTH.ME);
+      const response = await apiGet<UserMeResponse>(API_ENDPOINTS.AUTH.ME);
       
       // 恢复原始token
       if (originalToken) {
@@ -109,7 +109,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setIsLoading(true);
       
-      const response = await apiPost(API_ENDPOINTS.AUTH.LOGIN, { email, password });
+      const response = await apiPost<LoginResponse>(API_ENDPOINTS.AUTH.LOGIN, { email, password });
       
       if (response.success && response.data?.token) {
         const data = response.data;
@@ -143,7 +143,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setIsLoading(true);
       
-      const response = await apiPost(API_ENDPOINTS.AUTH.REGISTER, {
+      const response = await apiPost<RegisterResponse>(API_ENDPOINTS.AUTH.REGISTER, {
         name: userData.name,
         email: userData.email,
         password: userData.password

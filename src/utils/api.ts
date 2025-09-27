@@ -9,6 +9,7 @@ export const API_ENDPOINTS = {
     REGISTER: `${API_BASE_URL}/api/auth/register`,
     ME: `${API_BASE_URL}/api/auth/me`,
     PROFILE: `${API_BASE_URL}/api/auth/profile`,
+    UPDATE: `${API_BASE_URL}/api/auth/profile`,
   },
   // 任务相关
   TASKS: {
@@ -43,6 +44,34 @@ export const getAuthHeaders = (): HeadersInit => {
     ...(token && { Authorization: `Bearer ${token}` }),
   };
 };
+
+// 用户信息类型
+export interface ApiUser {
+  id: string;
+  name: string;
+  email: string;
+  familyId: string;
+  role: 'member' | 'admin';
+  avatar?: string;
+  createdAt: string;
+}
+
+// 登录响应类型
+export interface LoginResponse {
+  user: ApiUser;
+  token: string;
+}
+
+// 注册响应类型
+export interface RegisterResponse {
+  user: ApiUser;
+  token: string;
+}
+
+// 用户信息响应类型
+export interface UserMeResponse {
+  user: ApiUser;
+}
 
 // API响应类型
 export interface ApiResponse<T = any> {
