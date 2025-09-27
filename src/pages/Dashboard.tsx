@@ -6,7 +6,7 @@ import { Button } from '../components/ui';
 import Calendar from '../components/Calendar';
 import TaskPanel from '../components/TaskPanel';
 import { Task, TaskFilter, TaskTypeLabels } from '../types/task';
-import { apiGet, apiPut } from '../utils/api';
+import { apiGet, apiPut, API_ENDPOINTS } from '../utils/api';
 
 const Dashboard: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -34,9 +34,9 @@ const Dashboard: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await apiGet<Task[]>('/api/tasks');
+        const response = await apiGet<{tasks: Task[], total: number, page: number, limit: number}>(API_ENDPOINTS.TASKS.LIST);
         if (response.success) {
-          setTasks(response.data || []);
+          setTasks(response.data?.tasks || []);
         } else {
           setError('加載任務失敗');
         }
@@ -113,7 +113,7 @@ const Dashboard: React.FC = () => {
         completerName: newStatus === 'completed' ? user?.name : undefined
       };
       
-      const response = await apiPut<Task>(`/api/tasks/${taskId}`, updateData);
+      const response = await apiPut<Task>(API_ENDPOINTS.TASKS.UPDATE(taskId), updateData);
       
       if (response.success && response.data) {
         setTasks(prevTasks => 
