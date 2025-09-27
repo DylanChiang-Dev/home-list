@@ -1,6 +1,6 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Users, Settings, LogOut, Filter, Database } from 'lucide-react';
+import { Plus, Users, Settings, LogOut, Filter, Database, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui';
 import Calendar from '../components/Calendar';
@@ -16,24 +16,10 @@ const Dashboard: React.FC = () => {
     type: 'all',
     assignee: 'all'
   });
-  const [loading, setLoading] = useState(true);
+  const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  
-  // 当用户信息变化时更新任务数据
-  useEffect(() => {
-    if (user) {
-      setTasks(prevTasks => 
-        prevTasks.map(task => ({
-          ...task,
-          creatorName: user.name,
-          assigneeName: user.name,
-          completerName: task.status === 'completed' ? user.name : task.completerName
-        }))
-      );
-    }
-  }, [user]);
 
   const handleLogout = () => {
     logout();
@@ -123,6 +109,7 @@ const Dashboard: React.FC = () => {
     try {
       const updateData = {
         status: newStatus,
+<<<<<<< HEAD
         completedAt: newStatus === 'completed' ? new Date().toISOString() : undefined,
         completerName: newStatus === 'completed' ? user?.name : undefined
       };

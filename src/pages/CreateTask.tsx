@@ -76,7 +76,7 @@ const CreateTask: React.FC = () => {
     assigneeId: user?.id || '',
     priority: 'medium' as 'high' | 'medium' | 'low',
     type: 'regular' as 'regular' | 'long_term' | 'recurring',
-    dueDate: '',
+    dueDate: new Date().toISOString().split('T')[0], // 默認為當天
     recurringRule: null as RecurringRule | null
   });
 
@@ -95,10 +95,14 @@ const CreateTask: React.FC = () => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
-    // 当任务类型改变时，处理重复规则
+    // 当任务类型改变时，处理重复规则和截止日期
     if (name === 'type') {
       if (value === 'regular') {
-        setFormData(prev => ({ ...prev, recurringRule: null }));
+        setFormData(prev => ({ 
+          ...prev, 
+          recurringRule: null,
+          dueDate: new Date().toISOString().split('T')[0] // 普通任务默认当天
+        }));
         setShowRecurringOptions(false);
       } else if (value === 'recurring') {
         setFormData(prev => ({
@@ -110,7 +114,8 @@ const CreateTask: React.FC = () => {
       } else if (value === 'long_term') {
         setFormData(prev => ({
           ...prev,
-          recurringRule: { type: 'weekly', interval: 1, daysOfWeek: [] }
+          recurringRule: { type: 'weekly', interval: 1, daysOfWeek: [] },
+          dueDate: prev.dueDate || '' // 长期任务保持现有日期或为空
         }));
         setShowRecurringOptions(true);
       }
@@ -220,6 +225,7 @@ const CreateTask: React.FC = () => {
       return;
     }
 
+<<<<<<< HEAD
     try {
       setLoading(true);
       setError(null);
@@ -249,6 +255,38 @@ const CreateTask: React.FC = () => {
     } catch (error) {
       console.error('Error creating task:', error);
       setError('創建任務時發生錯誤');
+=======
+    setLoading(true);
+
+    try {
+      // 创建新任务对象
+      const newTask: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'creatorName' | 'assigneeName'> = {
+        title: formData.title,
+        description: formData.description,
+        status: 'pending',
+        priority: formData.priority,
+        type: formData.type,
+        assigneeId: formData.assigneeId,
+        dueDate: formData.dueDate || undefined,
+        recurringRule: formData.recurringRule
+      };
+
+      // 调用API创建任务
+      const response = await apiPost<Task>(API_ENDPOINTS.TASKS.CREATE, newTask);
+      
+      if (response.error) {
+        setErrors({ submit: response.error });
+        return;
+      }
+      
+      console.log('任务创建成功:', response.data);
+      
+      // 成功创建后跳转
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('创建任务失败:', error);
+      setErrors({ submit: '创建任务失败，请稍后重试' });
+>>>>>>> c67a1b5210a122cf5538f9c688676064aaf59320
     } finally {
       setLoading(false);
     }
@@ -805,6 +843,16 @@ const CreateTask: React.FC = () => {
 
 
 
+              {/* 错误提示 */}
+              {errors.submit && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                  <div className="flex items-center">
+                    <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
+                    <p className="text-sm text-red-600">{errors.submit}</p>
+                  </div>
+                </div>
+              )}
+
               {/* 提交按钮 */}
               <div className="flex justify-end space-x-3 pt-6 border-t">
                 <Link
@@ -816,6 +864,7 @@ const CreateTask: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
+<<<<<<< HEAD
                   className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
                 >
                   {loading ? (
@@ -826,6 +875,14 @@ const CreateTask: React.FC = () => {
                   ) : (
                     '创建任务'
                   )}
+=======
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
+                >
+                  {loading && (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                  <span>{loading ? '创建中...' : '创建任务'}</span>
+>>>>>>> c67a1b5210a122cf5538f9c688676064aaf59320
                 </button>
               </div>
             </form>
