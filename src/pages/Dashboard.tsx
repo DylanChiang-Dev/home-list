@@ -1,11 +1,12 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { Plus, Users, Settings, LogOut, Filter, Database } from 'lucide-react';
+import { Plus, Users, Settings, LogOut, Filter, Database, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui';
 import Calendar from '../components/Calendar';
 import TaskPanel from '../components/TaskPanel';
 import { Task, TaskFilter, TaskTypeLabels } from '../types/task';
+import { API_ENDPOINTS, apiGet, apiPut } from '../utils/api';
 
 const Dashboard: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -17,20 +18,8 @@ const Dashboard: React.FC = () => {
   });
   const { user, logout } = useAuth();
   const navigate = useNavigate();
-  
-  // 当用户信息变化时更新任务数据
-  useEffect(() => {
-    if (user) {
-      setTasks(prevTasks => 
-        prevTasks.map(task => ({
-          ...task,
-          creatorName: user.name,
-          assigneeName: user.name,
-          completerName: task.status === 'completed' ? user.name : task.completerName
-        }))
-      );
-    }
-  }, [user]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const handleLogout = () => {
     logout();
@@ -39,23 +28,35 @@ const Dashboard: React.FC = () => {
   // 任务数据
   const [tasks, setTasks] = useState<Task[]>([]);
 
-  // 从localStorage加载任务数据
+  // 从API加载任务数据
   useEffect(() => {
-    const savedTasks = localStorage.getItem('tasks');
-    if (savedTasks) {
+    const loadTasks = async () => {
+      if (!user) return;
+      
+      setLoading(true);
+      setError(null);
+      
       try {
-        const parsedTasks = JSON.parse(savedTasks);
-        setTasks(parsedTasks);
+        const response = await apiGet<Task[]>(API_ENDPOINTS.TASKS.LIST);
+        
+        if (response.error) {
+          setError(response.error);
+          return;
+        }
+        
+        if (response.data) {
+          setTasks(response.data);
+        }
       } catch (error) {
-        console.error('Error: Failed to load tasks from storage');
+        console.error('加載任務失敗:', error);
+        setError('加載任務失敗，請稍後重試');
+      } finally {
+        setLoading(false);
       }
-    }
-  }, []);
-
-  // 保存任务数据到localStorage
-  useEffect(() => {
-    localStorage.setItem('tasks', JSON.stringify(tasks));
-  }, [tasks]);
+    };
+    
+    loadTasks();
+  }, [user]);
 
   // 获取选中日期的任务
   const getTasksForDate = (date: Date) => {
@@ -109,19 +110,40 @@ const Dashboard: React.FC = () => {
   });
 
   // 更新任务状态
-  const updateTaskStatus = (taskId: string, newStatus: Task['status']) => {
-    setTasks(prevTasks => 
-      prevTasks.map(task => 
-        task.id === taskId 
-          ? { 
-              ...task, 
-              status: newStatus,
-              completedAt: newStatus === 'completed' ? new Date().toISOString() : undefined,
-              completerName: newStatus === 'completed' ? user?.name : undefined
-            }
-          : task
-      )
-    );
+  const updateTaskStatus = async (taskId: string, newStatus: Task['status']) => {
+    try {
+      const updateData = {
+        status: newStatus,
+        ...(newStatus === 'completed' && {
+          completedAt: new Date().toISOString(),
+          completerName: user?.name
+        })
+      };
+      
+      const response = await apiPut<Task>(API_ENDPOINTS.TASKS.UPDATE(taskId), updateData);
+      
+      if (response.error) {
+        setError(response.error);
+        return;
+      }
+      
+      // 更新本地狀態
+      setTasks(prevTasks => 
+        prevTasks.map(task => 
+          task.id === taskId 
+            ? { 
+                ...task, 
+                status: newStatus,
+                completedAt: newStatus === 'completed' ? new Date().toISOString() : undefined,
+                completerName: newStatus === 'completed' ? user?.name : undefined
+              }
+            : task
+        )
+      );
+    } catch (error) {
+      console.error('更新任務狀態失敗:', error);
+      setError('更新任務狀態失敗，請稍後重試');
+    }
   };
 
   return (
@@ -163,6 +185,32 @@ const Dashboard: React.FC = () => {
 
       {/* Main Content */}
       <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Error Display */}
+        {error && (
+          <div className="mb-6 bg-red-50 border border-red-200 rounded-md p-4">
+            <div className="flex items-center">
+              <AlertCircle className="h-5 w-5 text-red-400 mr-2" />
+              <p className="text-sm text-red-700">{error}</p>
+              <button
+                onClick={() => setError(null)}
+                className="ml-auto text-red-400 hover:text-red-600"
+              >
+                ×
+              </button>
+            </div>
+          </div>
+        )}
+        
+        {/* Loading State */}
+        {loading && (
+          <div className="mb-6 bg-blue-50 border border-blue-200 rounded-md p-4">
+            <div className="flex items-center">
+              <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-blue-600 mr-2"></div>
+              <p className="text-sm text-blue-700">正在加載任務...</p>
+            </div>
+          </div>
+        )}
+        
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
           {/* Left Side - Calendar */}
           <div className="lg:col-span-2">

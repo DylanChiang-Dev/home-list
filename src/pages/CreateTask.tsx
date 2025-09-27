@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, User, Calendar, AlertCircle, Repeat, Clock, Target } from 'lucide-react';
 import { Task, RecurringRule, TaskTypeLabels, TaskTypeColors } from '../types/task';
 import { useAuth } from '../contexts/AuthContext';
+import { API_ENDPOINTS, apiPost } from '../utils/api';
 
 interface FamilyMember {
   id: string;
@@ -198,43 +199,46 @@ const CreateTask: React.FC = () => {
     return Object.keys(newErrors).length === 0;
   };
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     
     if (!validateForm()) {
       return;
     }
 
-    // 创建新任务对象
-    const newTask: Omit<Task, 'id'> = {
-      title: formData.title,
-      description: formData.description,
-      status: 'pending',
-      priority: formData.priority,
-      type: formData.type,
-      assigneeId: formData.assigneeId,
-      creatorName: 'Current User',
-      assigneeName: familyMembers.find(m => m.id === formData.assigneeId)?.name || '未知用户',
-      createdAt: new Date().toISOString(),
-      updatedAt: new Date().toISOString(),
-      dueDate: formData.dueDate || undefined,
-      recurringRule: formData.recurringRule
-    };
+    setLoading(true);
 
-    // 这里应该调用API创建任务，现在先存储到localStorage
-    const existingTasks = JSON.parse(localStorage.getItem('tasks') || '[]');
-    const taskWithId = {
-      ...newTask,
-      id: Date.now().toString() // 简单的ID生成
-    };
-    
-    existingTasks.push(taskWithId);
-    localStorage.setItem('tasks', JSON.stringify(existingTasks));
-    
-    console.log('创建任务:', taskWithId);
-    
-    // 成功创建后跳转
-    navigate('/dashboard');
+    try {
+      // 创建新任务对象
+      const newTask: Omit<Task, 'id' | 'createdAt' | 'updatedAt' | 'creatorName' | 'assigneeName'> = {
+        title: formData.title,
+        description: formData.description,
+        status: 'pending',
+        priority: formData.priority,
+        type: formData.type,
+        assigneeId: formData.assigneeId,
+        dueDate: formData.dueDate || undefined,
+        recurringRule: formData.recurringRule
+      };
+
+      // 调用API创建任务
+      const response = await apiPost<Task>(API_ENDPOINTS.TASKS.CREATE, newTask);
+      
+      if (response.error) {
+        setErrors({ submit: response.error });
+        return;
+      }
+      
+      console.log('任务创建成功:', response.data);
+      
+      // 成功创建后跳转
+      navigate('/dashboard');
+    } catch (error) {
+      console.error('创建任务失败:', error);
+      setErrors({ submit: '创建任务失败，请稍后重试' });
+    } finally {
+      setLoading(false);
+    }
   };
 
   const getPriorityColor = (priority: string) => {
@@ -765,6 +769,16 @@ const CreateTask: React.FC = () => {
 
 
 
+              {/* 错误提示 */}
+              {errors.submit && (
+                <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                  <div className="flex items-center">
+                    <AlertCircle className="w-5 h-5 text-red-400 mr-2" />
+                    <p className="text-sm text-red-600">{errors.submit}</p>
+                  </div>
+                </div>
+              )}
+
               {/* 提交按钮 */}
               <div className="flex justify-end space-x-3 pt-6 border-t">
                 <Link
@@ -776,9 +790,12 @@ const CreateTask: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
-                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
                 >
-                  {loading ? '创建中...' : '创建任务'}
+                  {loading && (
+                    <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                  )}
+                  <span>{loading ? '创建中...' : '创建任务'}</span>
                 </button>
               </div>
             </form>
