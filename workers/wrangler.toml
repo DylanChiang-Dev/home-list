@@ -18,7 +18,7 @@ id = "3badd56b26fc44e486a23c542a2d7b8c"
 [vars]
 JWT_SECRET = "your-jwt-secret-key-replace-in-production"
 ENVIRONMENT = "development"
-CORS_ORIGIN = "https://home-list.pages.dev"
+CORS_ORIGIN = "https://home-list.pages.dev,http://localhost:5173"
 
 # 生产环境配置
 [env.production]
