@@ -7,7 +7,7 @@ compatibility_flags = ["nodejs_compat"]
 [[d1_databases]]
 binding = "DB"
 database_name = "home-list-db"
-database_id = "ef7dba0e-5b8c-4456-a1f3-b5b07f7fefa3"
+database_id = "049061f7-1073-411c-8c9f-c50b8d73f1c9"
 
 # KV存储绑定
 [[kv_namespaces]]

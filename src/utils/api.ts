@@ -1,5 +1,5 @@
 // API配置
-export const API_BASE_URL = 'https://home-list-api.dylan-chiang.workers.dev';
+export const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://home-list-api.dylan-chiang.workers.dev';
 
 // API端点
 export const API_ENDPOINTS = {
