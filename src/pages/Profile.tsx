@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, User, Mail, Calendar, Edit3, Save, X, Eye, EyeOff, Shield, Bell, Palette } from 'lucide-react';
+import { ArrowLeft, User, Mail, Calendar, Shield, Bell, Eye, EyeOff, Edit2, Edit3, Save, X, Palette } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface UserProfile {
   id: string;
@@ -30,18 +31,35 @@ const Profile: React.FC = () => {
   const [showNewPassword, setShowNewPassword] = useState(false);
   const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   
-  // 模拟用户数据
+  const { user } = useAuth();
+  // 用户数据
   const [userProfile, setUserProfile] = useState<UserProfile>({
-    id: '1',
-    name: '家庭管理员',
-    email: 'admin@example.com',
+    id: user?.id || '1',
+    name: user?.name || '用户',
+    email: user?.email || 'user@example.com',
     role: 'admin',
-    joinedAt: '2024-01-01',
+    joinedAt: new Date().toISOString().split('T')[0],
     familyName: '温馨之家',
-    tasksCreated: 25,
-    tasksCompleted: 18,
-    tasksAssigned: 12
+    tasksCreated: 0,
+    tasksCompleted: 0,
+    tasksAssigned: 0
   });
+  
+  // 当用户信息变化时更新用户资料
+  useEffect(() => {
+    if (user) {
+      setUserProfile(prev => ({
+        ...prev,
+        id: user.id,
+        name: user.name,
+        email: user.email || 'user@example.com'
+      }));
+      setEditForm({
+        name: user.name,
+        email: user.email || 'user@example.com'
+      });
+    }
+  }, [user]);
   
   const [editForm, setEditForm] = useState({
     name: userProfile.name,
@@ -124,8 +142,7 @@ const Profile: React.FC = () => {
       return;
     }
     
-    // TODO: 实现密码修改逻辑
-    console.log('Changing password...');
+    console.error('Error: Password change service unavailable');
     
     setPasswordForm({
       currentPassword: '',

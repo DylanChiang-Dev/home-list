@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, User, Calendar, AlertCircle, Repeat, Clock, Target } from 'lucide-react';
 import { Task, RecurringRule, TaskTypeLabels, TaskTypeColors } from '../types/task';
+import { useAuth } from '../contexts/AuthContext';
 
 interface FamilyMember {
   id: string;
@@ -11,20 +12,48 @@ interface FamilyMember {
 
 const CreateTask: React.FC = () => {
   const navigate = useNavigate();
+  const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   
-  // 模拟家庭成员数据
-  const [familyMembers] = useState<FamilyMember[]>([
-    { id: '1', name: '家庭管理员', email: 'admin@example.com' },
-    { id: '2', name: '家庭成员', email: 'member@example.com' },
-    { id: '3', name: '小明', email: 'xiaoming@example.com' },
-    { id: '4', name: '小红', email: 'xiaohong@example.com' }
-  ]);
+  // 动态获取家庭成员数据
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
+  
+  // 获取家庭成员数据
+  useEffect(() => {
+    const loadFamilyMembers = () => {
+      // 从localStorage获取家庭成员数据
+      const storedMembers = localStorage.getItem('familyMembers');
+      let members: FamilyMember[] = [];
+      
+      if (storedMembers) {
+        try {
+          members = JSON.parse(storedMembers);
+        } catch (error) {
+          console.error('Error: Failed to load family members data');
+          members = [];
+        }
+      }
+      
+      // 确保当前用户在家庭成员列表中
+      if (user && !members.find(m => m.id === user.id)) {
+        members.unshift({
+          id: user.id,
+          name: user.name,
+          email: user.email || 'user@example.com'
+        });
+        localStorage.setItem('familyMembers', JSON.stringify(members));
+      }
+      
+      setFamilyMembers(members);
+    };
+    
+    loadFamilyMembers();
+  }, [user]);
   
   const [formData, setFormData] = useState({
     title: '',
     description: '',
-    assigneeId: '',
+    assigneeId: user?.id || '',
     priority: 'medium' as 'high' | 'medium' | 'low',
     type: 'regular' as 'regular' | 'long_term' | 'recurring',
     dueDate: '',
@@ -34,6 +63,13 @@ const CreateTask: React.FC = () => {
   const [showRecurringOptions, setShowRecurringOptions] = useState(false);
   
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // 当用户信息变化时，更新默认负责人
+  useEffect(() => {
+    if (user?.id && !formData.assigneeId) {
+      setFormData(prev => ({ ...prev, assigneeId: user.id }));
+    }
+  }, [user, formData.assigneeId]);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>) => {
     const { name, value } = e.target;
@@ -173,7 +209,7 @@ const CreateTask: React.FC = () => {
       type: formData.type,
       assigneeId: formData.assigneeId,
       creatorName: 'Current User',
-      assigneeName: familyMembers.find(m => m.id === formData.assigneeId)?.name || '',
+      assigneeName: familyMembers.find(m => m.id === formData.assigneeId)?.name || '未知用户',
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),
       dueDate: formData.dueDate || undefined,
@@ -298,11 +334,22 @@ const CreateTask: React.FC = () => {
                     }`}
                   >
                     <option value="">请选择负责人</option>
-                    {familyMembers.map((member) => (
-                      <option key={member.id} value={member.id}>
-                        {member.name}
-                      </option>
-                    ))}
+                    {familyMembers.length === 0 ? (
+                      <option value="" disabled>加载中...</option>
+                    ) : familyMembers.length === 1 && user && familyMembers[0].id === user.id ? (
+                      <>
+                        <option key={familyMembers[0].id} value={familyMembers[0].id}>
+                          {familyMembers[0].name}（我）
+                        </option>
+                        <option value="" disabled style={{color: '#9CA3AF'}}>暂无其他家庭成员</option>
+                      </>
+                    ) : (
+                      familyMembers.map((member) => (
+                        <option key={member.id} value={member.id}>
+                          {member.name}{member.id === user?.id ? '（我）' : ''}
+                        </option>
+                      ))
+                    )}
                   </select>
                 </div>
                 {errors.assigneeId && (

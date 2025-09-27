@@ -35,9 +35,16 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, selectedDate, onDateSelect }
         if (date > endDate) return false;
       }
       
-      if (task.dueDate) {
-        const taskDate = new Date(task.dueDate).toISOString().split('T')[0];
-        return taskDate === dateStr;
+      // 处理长期任务 - 每天都显示直到截止日期
+      if (task.type === 'long_term') {
+        const createdDate = new Date(task.createdAt);
+        if (date < createdDate) return false;
+        
+        if (task.dueDate) {
+          const dueDate = new Date(task.dueDate);
+          return date <= dueDate;
+        }
+        return true;
       }
       
       // 处理重复任务
@@ -95,16 +102,10 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, selectedDate, onDateSelect }
         return false;
       }
       
-      // 处理长期任务 - 每天都显示直到截止日期
-      if (task.type === 'long_term') {
-        const createdDate = new Date(task.createdAt);
-        if (date < createdDate) return false;
-        
-        if (task.dueDate) {
-          const dueDate = new Date(task.dueDate);
-          return date <= dueDate;
-        }
-        return true;
+      // 处理常规任务 - 只在截止日期显示
+      if (task.type === 'regular' && task.dueDate) {
+        const taskDate = new Date(task.dueDate).toISOString().split('T')[0];
+        return taskDate === dateStr;
       }
       
       return false;
@@ -136,9 +137,24 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, selectedDate, onDateSelect }
     // 添加月份中的天数
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-      const dayTasks = getTasksForDate(date);
+      const allDayTasks = getTasksForDate(date);
       const isSelected = selectedDate.toDateString() === date.toDateString();
       const isToday = new Date().toDateString() === date.toDateString();
+
+      // 按优先级排序任务：regular > long_term > recurring
+      const sortedTasks = allDayTasks.sort((a, b) => {
+        const priority = { regular: 3, long_term: 2, recurring: 1 };
+        return priority[b.type] - priority[a.type];
+      });
+
+      // 按优先级和数量限制选择要显示的任务
+      const regularTasks = sortedTasks.filter(task => task.type === 'regular').slice(0, 2);
+      const longTermTasks = sortedTasks.filter(task => task.type === 'long_term').slice(0, 1);
+      const recurringTasks = sortedTasks.filter(task => task.type === 'recurring').slice(0, 1);
+      
+      const displayTasks = [...regularTasks, ...longTermTasks, ...recurringTasks];
+      const totalTasks = allDayTasks.length;
+      const remainingTasks = totalTasks - displayTasks.length;
 
       days.push(
         <div
@@ -156,9 +172,9 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, selectedDate, onDateSelect }
             }`}>
               {day}
             </span>
-            {dayTasks.length > 0 && (
+            {displayTasks.length > 0 && (
               <div className="flex space-x-1">
-                {dayTasks.slice(0, 3).map((task, index) => (
+                {displayTasks.slice(0, 3).map((task, index) => (
                   <div
                     key={task.id}
                     className={`w-2 h-2 rounded-full ${
@@ -169,15 +185,15 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, selectedDate, onDateSelect }
                     title={task.title}
                   ></div>
                 ))}
-                {dayTasks.length > 3 && (
-                  <div className="text-xs text-gray-500">+{dayTasks.length - 3}</div>
+                {(displayTasks.length > 3 || remainingTasks > 0) && (
+                  <div className="text-xs text-gray-500">+{Math.max(displayTasks.length - 3, 0) + remainingTasks}</div>
                 )}
               </div>
             )}
           </div>
-          {dayTasks.length > 0 && (
+          {displayTasks.length > 0 && (
             <div className="flex-1 space-y-1 overflow-hidden">
-              {dayTasks.slice(0, 4).map((task, index) => (
+              {displayTasks.map((task, index) => (
                 <div
                   key={task.id}
                   className={`text-xs truncate px-1 py-0.5 rounded ${
@@ -192,9 +208,9 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, selectedDate, onDateSelect }
                   {task.title}
                 </div>
               ))}
-              {dayTasks.length > 4 && (
+              {remainingTasks > 0 && (
                 <div className="text-xs text-gray-400 px-1">
-                  +{dayTasks.length - 4} 更多任务
+                  +{remainingTasks} 更多任务
                 </div>
               )}
             </div>

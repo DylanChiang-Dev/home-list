@@ -47,13 +47,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         const userData = localStorage.getItem('userData');
         
         if (token && userData) {
-          // TODO: 验证token有效性
           const parsedUser = JSON.parse(userData);
           setUser(parsedUser);
         }
       } catch (error) {
-        console.error('认证初始化失败:', error);
-        // 清除无效的认证信息
+        console.error('Error: Authentication initialization failed');
         localStorage.removeItem('authToken');
         localStorage.removeItem('userData');
       } finally {
@@ -68,36 +66,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       setIsLoading(true);
-      
-      // TODO: 实现真实的API调用
-      // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // 模拟登录验证
-      if (email === 'admin@family.com' && password === 'password') {
-        const mockUser: User = {
-          id: '1',
-          name: '管理员',
-          email: email,
-          familyId: 'family-1',
-          role: 'admin',
-          createdAt: new Date().toISOString()
-        };
-        
-        const mockToken = 'mock-jwt-token-' + Date.now();
-        
-        // 保存到本地存储
-        localStorage.setItem('authToken', mockToken);
-        localStorage.setItem('userData', JSON.stringify(mockUser));
-        
-        setUser(mockUser);
-        return { success: true };
-      } else {
-        return { success: false, error: '邮箱或密码错误' };
-      }
+      return { success: false, error: 'Error: Authentication service unavailable' };
     } catch (error) {
-      console.error('登录失败:', error);
-      return { success: false, error: '登录失败，请稍后重试' };
+      console.error('Error: Login failed');
+      return { success: false, error: 'Error: Login failed' };
     } finally {
       setIsLoading(false);
     }
@@ -107,32 +79,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const register = async (userData: RegisterData): Promise<{ success: boolean; error?: string }> => {
     try {
       setIsLoading(true);
-      
-      // TODO: 实现真实的API调用
-      // 模拟API调用
-      await new Promise(resolve => setTimeout(resolve, 1500));
-      
-      // 模拟注册逻辑
-      const mockUser: User = {
-        id: 'user-' + Date.now(),
-        name: userData.name,
-        email: userData.email,
-        familyId: userData.registrationType === 'create' ? 'family-' + Date.now() : 'family-existing',
-        role: userData.registrationType === 'create' ? 'admin' : 'member',
-        createdAt: new Date().toISOString()
-      };
-      
-      const mockToken = 'mock-jwt-token-' + Date.now();
-      
-      // 保存到本地存储
-      localStorage.setItem('authToken', mockToken);
-      localStorage.setItem('userData', JSON.stringify(mockUser));
-      
-      setUser(mockUser);
-      return { success: true };
+      return { success: false, error: 'Error: Registration service unavailable' };
     } catch (error) {
-      console.error('注册失败:', error);
-      return { success: false, error: '注册失败，请稍后重试' };
+      console.error('Error: Registration failed');
+      return { success: false, error: 'Error: Registration failed' };
     } finally {
       setIsLoading(false);
     }

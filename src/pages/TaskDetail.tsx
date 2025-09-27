@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
-import { useParams, Link, useNavigate } from 'react-router-dom';
-import { ArrowLeft, Edit, Check, User, Calendar, Clock, AlertCircle } from 'lucide-react';
+import React, { useState, useEffect } from 'react';
+import { useParams, useNavigate } from 'react-router-dom';
+import { ArrowLeft, Edit, Save, X, Clock, User, Calendar, Flag, CheckCircle, Circle, Play, AlertCircle, Check } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface Task {
   id: string;
@@ -20,27 +21,68 @@ const TaskDetail: React.FC = () => {
   const { id } = useParams<{ id: string }>();
   const navigate = useNavigate();
   const [isEditing, setIsEditing] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const { user } = useAuth();
   
-  // 模拟任务数据
-  const [task, setTask] = useState<Task>({
-    id: id || '1',
-    title: '打扫客厅',
-    description: '周末大扫除，清理客厅卫生，包括拖地、擦桌子、整理物品等。需要准备清洁用品和垃圾袋。',
-    status: 'pending',
-    priority: 'medium',
-    creatorName: '家庭管理员',
-    assigneeName: '家庭成员',
-    createdAt: '2024-01-15T10:00:00Z',
-    dueDate: '2024-01-20T18:00:00Z'
-  });
+  // 任务数据
+  const [task, setTask] = useState<Task | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  // 从localStorage或API加载任务数据
+  useEffect(() => {
+    const loadTask = () => {
+      try {
+        const savedTasks = localStorage.getItem('tasks');
+        if (savedTasks && id) {
+          const tasks = JSON.parse(savedTasks);
+          const foundTask = tasks.find((t: Task) => t.id === id);
+          if (foundTask) {
+            setTask(foundTask);
+          } else {
+            setError('Task not found');
+          }
+        } else {
+          setError('No data available');
+        }
+      } catch (err) {
+        setError('Error: Failed to load task data');
+      } finally {
+        setLoading(false);
+      }
+    };
+    
+    loadTask();
+  }, [id]);
+  
+  // 当用户信息变化时更新任务数据
+  useEffect(() => {
+    if (user && task) {
+      setTask(prev => prev ? ({
+        ...prev,
+        creatorName: user.name,
+        assigneeName: user.name
+      }) : null);
+    }
+  }, [user, task]);
 
   const [editForm, setEditForm] = useState({
-    title: task.title,
-    description: task.description,
-    priority: task.priority,
-    dueDate: task.dueDate ? task.dueDate.split('T')[0] : ''
+    title: '',
+    description: '',
+    priority: 'medium' as 'high' | 'medium' | 'low',
+    dueDate: ''
   });
+
+  // 当task加载完成后初始化编辑表单
+  useEffect(() => {
+    if (task) {
+      setEditForm({
+        title: task.title,
+        description: task.description,
+        priority: task.priority,
+        dueDate: task.dueDate ? task.dueDate.split('T')[0] : ''
+      });
+    }
+  }, [task]);
 
   const getStatusColor = (status: string) => {
     switch (status) {
@@ -80,38 +122,15 @@ const TaskDetail: React.FC = () => {
 
   const handleStatusChange = async (newStatus: 'pending' | 'in_progress' | 'completed') => {
     setLoading(true);
-    
-    // TODO: 实现状态更新逻辑
-    console.log('Updating task status:', { taskId: task.id, newStatus });
-    
-    setTimeout(() => {
-      setTask(prev => ({
-        ...prev,
-        status: newStatus,
-        completedAt: newStatus === 'completed' ? new Date().toISOString() : undefined,
-        completerName: newStatus === 'completed' ? '当前用户' : undefined
-      }));
-      setLoading(false);
-    }, 1000);
+    console.error('Error: Task status update service unavailable');
+    setLoading(false);
   };
 
   const handleSaveEdit = async () => {
     setLoading(true);
-    
-    // TODO: 实现任务更新逻辑
-    console.log('Updating task:', { taskId: task.id, ...editForm });
-    
-    setTimeout(() => {
-      setTask(prev => ({
-        ...prev,
-        title: editForm.title,
-        description: editForm.description,
-        priority: editForm.priority as 'high' | 'medium' | 'low',
-        dueDate: editForm.dueDate ? `${editForm.dueDate}T18:00:00Z` : undefined
-      }));
-      setIsEditing(false);
-      setLoading(false);
-    }, 1000);
+    console.error('Error: Task update service unavailable');
+    setIsEditing(false);
+    setLoading(false);
   };
 
   const formatDate = (dateString: string) => {
@@ -158,8 +177,17 @@ const TaskDetail: React.FC = () => {
       </header>
 
       <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200">
-          {isEditing ? (
+        {loading ? (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+            <div className="text-gray-500">加载中...</div>
+          </div>
+        ) : error ? (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+            <div className="text-red-500">{error}</div>
+          </div>
+        ) : task ? (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200">
+            {isEditing ? (
             /* 编辑模式 */
             <div className="p-6">
               <div className="space-y-6">
@@ -220,12 +248,14 @@ const TaskDetail: React.FC = () => {
                   <button
                     onClick={() => {
                       setIsEditing(false);
-                      setEditForm({
-                        title: task.title,
-                        description: task.description,
-                        priority: task.priority,
-                        dueDate: task.dueDate ? task.dueDate.split('T')[0] : ''
-                      });
+                      if (task) {
+                        setEditForm({
+                          title: task.title,
+                          description: task.description,
+                          priority: task.priority,
+                          dueDate: task.dueDate ? task.dueDate.split('T')[0] : ''
+                        });
+                      }
                     }}
                     className="px-4 py-2 text-gray-700 bg-gray-100 rounded-md hover:bg-gray-200 transition-colors"
                   >
@@ -380,6 +410,7 @@ const TaskDetail: React.FC = () => {
             </div>
           )}
         </div>
+      ) : null}
       </div>
     </div>
   );

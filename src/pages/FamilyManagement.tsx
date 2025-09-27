@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Users, UserPlus, Copy, Check, Trash2, Crown, User, Mail, Calendar } from 'lucide-react';
+import { useAuth } from '../contexts/AuthContext';
 
 interface FamilyMember {
   id: string;
@@ -27,65 +28,60 @@ const FamilyManagement: React.FC = () => {
   const [showCreateInvite, setShowCreateInvite] = useState(false);
   const [newInviteMaxUses, setNewInviteMaxUses] = useState(5);
   
-  // 模拟家庭成员数据
-  const [familyMembers] = useState<FamilyMember[]>([
-    {
-      id: '1',
-      name: '家庭管理员',
-      email: 'admin@example.com',
-      role: 'admin',
-      joinedAt: '2024-01-01',
-      tasksCount: 15,
-      completedTasks: 12
-    },
-    {
-      id: '2',
-      name: '小明',
-      email: 'xiaoming@example.com',
-      role: 'member',
-      joinedAt: '2024-01-15',
-      tasksCount: 8,
-      completedTasks: 6
-    },
-    {
-      id: '3',
-      name: '小红',
-      email: 'xiaohong@example.com',
-      role: 'member',
-      joinedAt: '2024-02-01',
-      tasksCount: 12,
-      completedTasks: 10
-    },
-    {
-      id: '4',
-      name: '小李',
-      email: 'xiaoli@example.com',
-      role: 'member',
-      joinedAt: '2024-02-15',
-      tasksCount: 5,
-      completedTasks: 3
-    }
-  ]);
+  const { user } = useAuth();
+  // 动态获取家庭成员数据
+  const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   
-  // 模拟邀请码数据
-  const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([
-    {
-      id: '1',
-      code: 'FAMILY2024',
-      createdAt: '2024-01-01',
-      expiresAt: '2024-12-31',
-      usedCount: 3,
-      maxUses: 5
-    },
-    {
-      id: '2',
-      code: 'WELCOME123',
-      createdAt: '2024-02-01',
-      expiresAt: '2024-03-01',
-      usedCount: 1,
-      maxUses: 3
-    }
-  ]);
+  // 加载家庭成员数据
+  useEffect(() => {
+    const loadFamilyMembers = () => {
+      const storedMembers = localStorage.getItem('familyMembers');
+      let members: FamilyMember[] = [];
+      
+      if (storedMembers) {
+        try {
+          const parsedMembers = JSON.parse(storedMembers);
+          // 转换为FamilyMember格式，添加缺失的字段
+          members = parsedMembers.map((member: any) => ({
+            id: member.id,
+            name: member.name,
+            email: member.email || 'user@example.com',
+            role: member.id === user?.id ? 'admin' : 'member',
+            joinedAt: member.joinedAt || new Date().toISOString().split('T')[0],
+            tasksCount: member.tasksCount || 0,
+            completedTasks: member.completedTasks || 0
+          }));
+        } catch (error) {
+          console.error('Error: Failed to load family members data');
+          members = [];
+        }
+      }
+      
+      // 确保当前用户在家庭成员列表中
+      if (user && !members.find(m => m.id === user.id)) {
+        members.unshift({
+          id: user.id,
+          name: user.name,
+          email: user.email || 'user@example.com',
+          role: 'admin',
+          joinedAt: new Date().toISOString().split('T')[0],
+          tasksCount: 0,
+          completedTasks: 0
+        });
+        localStorage.setItem('familyMembers', JSON.stringify(members.map(m => ({
+          id: m.id,
+          name: m.name,
+          email: m.email
+        }))));
+      }
+      
+      setFamilyMembers(members);
+    };
+    
+    loadFamilyMembers();
+  }, [user]);
+  
+  const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
 
   const handleCopyCode = async (code: string) => {
     try {
@@ -93,21 +89,12 @@ const FamilyManagement: React.FC = () => {
       setCopiedCode(code);
       setTimeout(() => setCopiedCode(null), 2000);
     } catch (err) {
-      console.error('复制失败:', err);
+      console.error('Error: Failed to copy invite code');
     }
   };
 
   const handleCreateInvite = () => {
-    const newCode = {
-      id: Date.now().toString(),
-      code: `INVITE${Math.random().toString(36).substring(2, 8).toUpperCase()}`,
-      createdAt: new Date().toISOString().split('T')[0],
-      expiresAt: new Date(Date.now() + 30 * 24 * 60 * 60 * 1000).toISOString().split('T')[0], // 30天后过期
-      usedCount: 0,
-      maxUses: newInviteMaxUses
-    };
-    
-    setInviteCodes(prev => [newCode, ...prev]);
+    console.error('Error: Invite code creation service unavailable');
     setShowCreateInvite(false);
     setNewInviteMaxUses(5);
   };

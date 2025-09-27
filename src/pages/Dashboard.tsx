@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import React, { useState, useMemo, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Users, Settings, LogOut, Filter } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui';
@@ -16,107 +16,28 @@ const Dashboard: React.FC = () => {
     assignee: 'all'
   });
   const { user, logout } = useAuth();
+  const navigate = useNavigate();
+  
+  // 当用户信息变化时更新任务数据
+  useEffect(() => {
+    if (user) {
+      setTasks(prevTasks => 
+        prevTasks.map(task => ({
+          ...task,
+          creatorName: user.name,
+          assigneeName: user.name,
+          completerName: task.status === 'completed' ? user.name : task.completerName
+        }))
+      );
+    }
+  }, [user]);
 
   const handleLogout = () => {
     logout();
   };
 
-  // 模拟任务数据，包含新的任务类型
-  const [tasks, setTasks] = useState<Task[]>([
-    {
-      id: '1',
-      title: '清洁厨房',
-      description: '清洁厨房台面、洗碗、整理餐具',
-      status: 'pending',
-      priority: 'high',
-      type: 'regular',
-      assigneeId: 'member1',
-      creatorName: '家庭管理员',
-      assigneeName: '家庭成员',
-      createdAt: '2024-01-15T10:00:00Z',
-      updatedAt: '2024-01-15T10:00:00Z',
-      dueDate: '2024-01-16T18:00:00Z'
-    },
-    {
-      id: '2',
-      title: '购买生活用品',
-      description: '购买洗发水、牙膏、纸巾等日用品',
-      status: 'in_progress',
-      priority: 'medium',
-      type: 'regular',
-      assigneeId: 'admin',
-      creatorName: '家庭成员',
-      assigneeName: '家庭管理员',
-      createdAt: '2024-01-14T09:00:00Z',
-      updatedAt: '2024-01-14T09:00:00Z',
-      dueDate: '2024-01-17T20:00:00Z'
-    },
-    {
-      id: '3',
-      title: '整理书房',
-      description: '整理书籍和文件',
-      status: 'completed',
-      priority: 'low',
-      type: 'regular',
-      assigneeId: 'member1',
-      creatorName: '家庭管理员',
-      assigneeName: '家庭成员',
-      completerName: '家庭成员',
-      createdAt: '2024-01-13T14:00:00Z',
-      updatedAt: '2024-01-14T16:00:00Z',
-      completedAt: '2024-01-14T16:00:00Z',
-      dueDate: '2024-01-15T18:00:00Z'
-    },
-    {
-      id: '4',
-      title: '每日锻炼',
-      description: '保持身体健康，每天锻炼30分钟',
-      status: 'pending',
-      priority: 'high',
-      type: 'recurring',
-      assigneeId: 'member1',
-      creatorName: '家庭管理员',
-      assigneeName: '家庭成员',
-      createdAt: '2024-01-01T06:00:00Z',
-      updatedAt: '2024-01-01T06:00:00Z',
-      recurringRule: {
-        type: 'daily',
-        interval: 1
-      }
-    },
-    {
-      id: '5',
-      title: '学习新技能',
-      description: '持续学习提升自己，长期坚持',
-      status: 'in_progress',
-      priority: 'medium',
-      type: 'long_term',
-      assigneeId: 'member1',
-      creatorName: '家庭成员',
-      assigneeName: '家庭成员',
-      createdAt: '2024-01-01T09:00:00Z',
-      updatedAt: '2024-01-01T09:00:00Z',
-      dueDate: '2024-12-31T23:59:59Z'
-    },
-    {
-      id: '6',
-      title: '家庭聚餐',
-      description: '每周日全家一起吃饭',
-      status: 'pending',
-      priority: 'medium',
-      type: 'recurring',
-      assigneeId: 'all',
-      creatorName: '家庭管理员',
-      assigneeName: '全家',
-      createdAt: '2024-01-01T12:00:00Z',
-      updatedAt: '2024-01-01T12:00:00Z',
-      recurringRule: {
-        type: 'weekly',
-        interval: 1,
-        daysOfWeek: [0]
-      }
-    }
-  ]);
+  // 任务数据
+  const [tasks, setTasks] = useState<Task[]>([]);
 
   // 从localStorage加载任务数据
   useEffect(() => {
@@ -126,7 +47,7 @@ const Dashboard: React.FC = () => {
         const parsedTasks = JSON.parse(savedTasks);
         setTasks(parsedTasks);
       } catch (error) {
-        console.error('Failed to parse tasks from localStorage:', error);
+        console.error('Error: Failed to load tasks from storage');
       }
     }
   }, []);
