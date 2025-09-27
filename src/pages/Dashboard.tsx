@@ -109,7 +109,6 @@ const Dashboard: React.FC = () => {
     try {
       const updateData = {
         status: newStatus,
-<<<<<<< HEAD
         completedAt: newStatus === 'completed' ? new Date().toISOString() : undefined,
         completerName: newStatus === 'completed' ? user?.name : undefined
       };

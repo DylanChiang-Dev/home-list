@@ -3,7 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { ArrowLeft, User, Calendar, AlertCircle, Repeat, Clock, Target } from 'lucide-react';
 import { Task, RecurringRule, TaskTypeLabels, TaskTypeColors } from '../types/task';
 import { useAuth } from '../contexts/AuthContext';
-import { apiGet, apiPost } from '../utils/api';
+import { apiGet, apiPost, API_ENDPOINTS } from '../utils/api';
 
 interface FamilyMember {
   id: string;
@@ -225,37 +225,6 @@ const CreateTask: React.FC = () => {
       return;
     }
 
-<<<<<<< HEAD
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // 创建新任务对象
-      const newTask = {
-        title: formData.title,
-        description: formData.description,
-        status: 'pending',
-        priority: formData.priority,
-        type: formData.type,
-        assigneeId: formData.assigneeId,
-        creatorName: user?.name || 'Current User',
-        assigneeName: familyMembers.find(m => m.id === formData.assigneeId)?.name || '未知用户',
-        dueDate: formData.dueDate || undefined,
-        recurringRule: formData.recurringRule
-      };
-
-      const response = await apiPost<Task>('/api/tasks', newTask);
-     
-     if (response.success) {
-        console.log('任務創建成功:', response.data);
-        navigate('/dashboard');
-      } else {
-        setError('創建任務失敗');
-      }
-    } catch (error) {
-      console.error('Error creating task:', error);
-      setError('創建任務時發生錯誤');
-=======
     setLoading(true);
 
     try {
@@ -286,7 +255,6 @@ const CreateTask: React.FC = () => {
     } catch (error) {
       console.error('创建任务失败:', error);
       setErrors({ submit: '创建任务失败，请稍后重试' });
->>>>>>> c67a1b5210a122cf5538f9c688676064aaf59320
     } finally {
       setLoading(false);
     }
@@ -864,25 +832,12 @@ const CreateTask: React.FC = () => {
                 <button
                   type="submit"
                   disabled={loading}
-<<<<<<< HEAD
-                  className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center"
-                >
-                  {loading ? (
-                    <>
-                      <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                      創建中...
-                    </>
-                  ) : (
-                    '创建任务'
-                  )}
-=======
                   className="px-6 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center space-x-2"
                 >
                   {loading && (
                     <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                   )}
                   <span>{loading ? '创建中...' : '创建任务'}</span>
->>>>>>> c67a1b5210a122cf5538f9c688676064aaf59320
                 </button>
               </div>
             </form>
