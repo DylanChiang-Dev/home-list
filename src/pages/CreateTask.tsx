@@ -20,6 +20,7 @@ const CreateTask: React.FC = () => {
   // 动态获取家庭成员数据
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   const [loadingMembers, setLoadingMembers] = useState(true);
+  const [hasFamily, setHasFamily] = useState(true);
   
   // 从API获取家庭成员数据
   useEffect(() => {
@@ -40,14 +41,23 @@ const CreateTask: React.FC = () => {
           }
           
           setFamilyMembers(members);
+          setHasFamily(true);
         } else {
-          // 如果API失败，至少包含當前用戶
-          if (user) {
-            setFamilyMembers([{
-              id: user.id,
-              name: user.name,
-              email: user.email || 'user@example.com'
-            }]);
+          // 如果是權限錯誤，說明用戶沒有家庭
+          if (response.error?.includes('权限') || response.error?.includes('家庭')) {
+            setHasFamily(false);
+            setFamilyMembers([]);
+            setError('您還沒有加入任何家庭，無法創建任務。請先創建或加入一個家庭。');
+          } else {
+            // 其他錯誤，至少包含當前用戶
+            if (user) {
+              setFamilyMembers([{
+                id: user.id,
+                name: user.name,
+                email: user.email || 'user@example.com'
+              }]);
+            }
+            setError(response.error || '加載家庭成員失敗');
           }
         }
       } catch (error) {
@@ -60,6 +70,7 @@ const CreateTask: React.FC = () => {
             email: user.email || 'user@example.com'
           }]);
         }
+        setError('網絡錯誤，請稍後重試');
       } finally {
         setLoadingMembers(false);
       }
@@ -284,6 +295,57 @@ const CreateTask: React.FC = () => {
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
           <p className="text-gray-600">載入家庭成員資料中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 如果用戶沒有家庭，顯示提示頁面
+  if (!hasFamily) {
+    return (
+      <div className="min-h-screen bg-gray-50">
+        {/* 顶部导航 */}
+        <header className="bg-white shadow-sm border-b">
+          <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8">
+            <div className="flex items-center justify-between h-16">
+              <div className="flex items-center space-x-4">
+                <Link
+                  to="/dashboard"
+                  className="text-gray-600 hover:text-gray-900 flex items-center space-x-2 transition-colors"
+                >
+                  <ArrowLeft className="w-5 h-5" />
+                  <span>返回看板</span>
+                </Link>
+                <div className="h-6 w-px bg-gray-300"></div>
+                <h1 className="text-xl font-semibold text-gray-900">创建任务</h1>
+              </div>
+            </div>
+          </div>
+        </header>
+
+        <div className="max-w-4xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+            <div className="max-w-md mx-auto">
+              <Target className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h2 className="text-2xl font-semibold text-gray-900 mb-2">無法創建任務</h2>
+              <p className="text-gray-600 mb-6">您還沒有加入任何家庭，無法創建任務。請先創建或加入一個家庭。</p>
+              
+              <div className="space-y-3">
+                <Link
+                  to="/family"
+                  className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium inline-block"
+                >
+                  前往家庭管理
+                </Link>
+                <Link
+                  to="/dashboard"
+                  className="w-full text-gray-700 bg-gray-100 px-6 py-3 rounded-lg hover:bg-gray-200 transition-colors inline-block"
+                >
+                  返回看板
+                </Link>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
     );

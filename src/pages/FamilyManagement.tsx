@@ -31,6 +31,13 @@ const FamilyManagement: React.FC = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   
+  // 創建家庭相關狀態
+  const [showCreateFamily, setShowCreateFamily] = useState(false);
+  const [familyName, setFamilyName] = useState('');
+  const [familyDescription, setFamilyDescription] = useState('');
+  const [creatingFamily, setCreatingFamily] = useState(false);
+  const [hasFamily, setHasFamily] = useState(false);
+  
   const { user } = useAuth();
   // 动态获取家庭成员数据
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
@@ -46,17 +53,26 @@ const FamilyManagement: React.FC = () => {
          const membersResponse = await apiGet<FamilyMember[]>(API_ENDPOINTS.FAMILY.MEMBERS);
          if (membersResponse.success && membersResponse.data) {
            setFamilyMembers(membersResponse.data);
+           setHasFamily(true);
         } else {
-          throw new Error(membersResponse.error || '加載家庭成員失敗');
+          // 如果是權限錯誤，可能用戶沒有家庭
+          if (membersResponse.error?.includes('权限') || membersResponse.error?.includes('家庭')) {
+            setHasFamily(false);
+            setFamilyMembers([]);
+          } else {
+            throw new Error(membersResponse.error || '加載家庭成員失敗');
+          }
         }
         
-        // 加載邀請碼數據
-         const invitesResponse = await apiGet<InviteCode[]>(API_ENDPOINTS.FAMILY.INVITES);
-         if (invitesResponse.success && invitesResponse.data) {
-           setInviteCodes(invitesResponse.data);
-        } else {
-          // 邀請碼加載失敗不阻止頁面顯示，只記錄錯誤
-          console.error('加載邀請碼失敗:', invitesResponse.error);
+        // 只有當用戶有家庭時才加載邀請碼
+        if (hasFamily) {
+          const invitesResponse = await apiGet<InviteCode[]>(API_ENDPOINTS.FAMILY.INVITES);
+          if (invitesResponse.success && invitesResponse.data) {
+            setInviteCodes(invitesResponse.data);
+          } else {
+            // 邀請碼加載失敗不阻止頁面顯示，只記錄錯誤
+            console.error('加載邀請碼失敗:', invitesResponse.error);
+          }
         }
       } catch (err) {
         console.error('加載數據失敗:', err);
@@ -67,7 +83,7 @@ const FamilyManagement: React.FC = () => {
     };
     
     loadData();
-  }, [user]);
+  }, [user, hasFamily]);
   
   const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
 
@@ -114,6 +130,40 @@ const FamilyManagement: React.FC = () => {
     } catch (err) {
       console.error('刪除邀請碼失敗:', err);
       setError(err.message || '刪除邀請碼失敗');
+    }
+  };
+
+  // 創建家庭處理函數
+  const handleCreateFamily = async () => {
+    if (!familyName.trim()) {
+      setError('請輸入家庭名稱');
+      return;
+    }
+
+    try {
+      setCreatingFamily(true);
+      setError('');
+      
+      const response = await apiPost(API_ENDPOINTS.FAMILY.CREATE, {
+        name: familyName.trim(),
+        description: familyDescription.trim()
+      });
+      
+      if (response.success) {
+        setHasFamily(true);
+        setShowCreateFamily(false);
+        setFamilyName('');
+        setFamilyDescription('');
+        // 重新加載數據
+        window.location.reload();
+      } else {
+        throw new Error(response.error || '創建家庭失敗');
+      }
+    } catch (err) {
+      console.error('創建家庭失敗:', err);
+      setError(err.message || '創建家庭失敗');
+    } finally {
+      setCreatingFamily(false);
     }
   };
 
@@ -175,7 +225,81 @@ const FamilyManagement: React.FC = () => {
       )}
 
       <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* 标签页导航 */}
+        {/* 如果用戶沒有家庭，顯示創建家庭界面 */}
+        {!hasFamily && !loading && (
+          <div className="bg-white rounded-lg shadow-sm border border-gray-200 p-8 text-center">
+            <div className="max-w-md mx-auto">
+              <Users className="w-16 h-16 text-gray-400 mx-auto mb-4" />
+              <h2 className="text-2xl font-semibold text-gray-900 mb-2">歡迎使用家庭管理</h2>
+              <p className="text-gray-600 mb-6">您還沒有加入任何家庭，請先創建一個家庭或使用邀請碼加入現有家庭。</p>
+              
+              {!showCreateFamily ? (
+                <div className="space-y-3">
+                  <button
+                    onClick={() => setShowCreateFamily(true)}
+                    className="w-full bg-blue-600 text-white px-6 py-3 rounded-lg hover:bg-blue-700 transition-colors font-medium"
+                  >
+                    創建新家庭
+                  </button>
+                  <p className="text-sm text-gray-500">或者使用邀請碼加入現有家庭</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 text-left">
+                      家庭名稱 <span className="text-red-500">*</span>
+                    </label>
+                    <input
+                      type="text"
+                      value={familyName}
+                      onChange={(e) => setFamilyName(e.target.value)}
+                      placeholder="請輸入家庭名稱"
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium text-gray-700 mb-2 text-left">
+                      家庭描述（可選）
+                    </label>
+                    <textarea
+                      value={familyDescription}
+                      onChange={(e) => setFamilyDescription(e.target.value)}
+                      placeholder="請輸入家庭描述"
+                      rows={3}
+                      className="w-full px-3 py-2 border border-gray-300 rounded-lg focus:outline-none focus:ring-2 focus:ring-blue-500"
+                    />
+                  </div>
+                  <div className="flex space-x-3">
+                    <button
+                      onClick={handleCreateFamily}
+                      disabled={creatingFamily}
+                      className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors flex items-center justify-center space-x-2"
+                    >
+                      {creatingFamily && (
+                        <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      )}
+                      <span>{creatingFamily ? '創建中...' : '創建家庭'}</span>
+                    </button>
+                    <button
+                      onClick={() => {
+                        setShowCreateFamily(false);
+                        setFamilyName('');
+                        setFamilyDescription('');
+                        setError('');
+                      }}
+                      className="px-4 py-2 text-gray-700 bg-gray-100 rounded-lg hover:bg-gray-200 transition-colors"
+                    >
+                      取消
+                    </button>
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
+        {/* 标签页导航 - 只有當用戶有家庭時才顯示 */}
+        {hasFamily && (
         <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-6">
           <div className="border-b border-gray-200">
             <nav className="flex space-x-8 px-6">
@@ -433,6 +557,7 @@ const FamilyManagement: React.FC = () => {
             </div>
           )}
         </div>
+        )}
       </div>
     </div>
   );
