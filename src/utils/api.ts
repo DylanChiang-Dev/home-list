@@ -58,10 +58,29 @@ export const apiRequest = async <T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> => {
   try {
+    console.log('Making API request to:', url);
+    console.log('Using API_BASE_URL:', API_BASE_URL);
+    
     const response = await fetch(url, {
       headers: getAuthHeaders(),
       ...options,
     });
+
+    // 检查响应内容类型
+    const contentType = response.headers.get('content-type');
+    console.log('Response content-type:', contentType);
+    console.log('Response status:', response.status);
+    
+    // 如果不是JSON响应，说明可能是HTML页面
+    if (!contentType || !contentType.includes('application/json')) {
+      const text = await response.text();
+      console.error('Received non-JSON response:', text.substring(0, 200));
+      return { 
+        success: false, 
+        error: `API端点返回了HTML页面而不是JSON。请检查API URL配置: ${url}`, 
+        status: response.status 
+      };
+    }
 
     const data = await response.json();
 
@@ -72,6 +91,9 @@ export const apiRequest = async <T>(
     }
   } catch (error) {
     console.error('API request failed:', error);
+    if (error instanceof SyntaxError && error.message.includes('JSON')) {
+      return { success: false, error: 'API返回了无效的JSON响应，可能是HTML页面', status: 0 };
+    }
     return { success: false, error: '网络错误，请稍后重试', status: 0 };
   }
 };
