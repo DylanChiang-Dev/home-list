@@ -58,8 +58,12 @@ export const apiRequest = async <T>(
   options: RequestInit = {}
 ): Promise<ApiResponse<T>> => {
   try {
+    console.log('=== API Request Debug ===');
     console.log('Making API request to:', url);
     console.log('Using API_BASE_URL:', API_BASE_URL);
+    console.log('Environment VITE_API_BASE_URL:', import.meta.env.VITE_API_BASE_URL);
+    console.log('Request options:', options);
+    console.log('Request headers:', getAuthHeaders());
     
     const response = await fetch(url, {
       headers: getAuthHeaders(),
@@ -70,6 +74,7 @@ export const apiRequest = async <T>(
     const contentType = response.headers.get('content-type');
     console.log('Response content-type:', contentType);
     console.log('Response status:', response.status);
+    console.log('Response URL:', response.url);
     
     // 如果不是JSON响应，说明可能是HTML页面
     if (!contentType || !contentType.includes('application/json')) {

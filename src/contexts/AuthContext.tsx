@@ -1,4 +1,5 @@
 import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { apiPost, apiPut, apiGet, API_ENDPOINTS } from '../utils/api';
 
 // 用户类型定义
 export interface User {
@@ -42,21 +43,27 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   // 验证token有效性
   const validateToken = async (token: string): Promise<boolean> => {
     try {
-      const response = await fetch('https://home-list-api.dylan-chiang.workers.dev/api/auth/me', {
-        headers: {
-          'Authorization': `Bearer ${token}`,
-        },
-      });
+      // 临时设置token到localStorage以便apiGet使用
+      const originalToken = localStorage.getItem('authToken');
+      localStorage.setItem('authToken', token);
       
-      if (response.ok) {
-        const data = await response.json();
+      const response = await apiGet(API_ENDPOINTS.AUTH.ME);
+      
+      // 恢复原始token
+      if (originalToken) {
+        localStorage.setItem('authToken', originalToken);
+      } else {
+        localStorage.removeItem('authToken');
+      }
+      
+      if (response.success && response.data?.user) {
         const userData = {
-          id: data.user.id,
-          name: data.user.name,
-          email: data.user.email,
-          familyId: data.user.familyId || '',
-          role: data.user.role,
-          createdAt: data.user.createdAt
+          id: response.data.user.id,
+          name: response.data.user.name,
+          email: response.data.user.email,
+          familyId: response.data.user.familyId || '',
+          role: response.data.user.role,
+          createdAt: response.data.user.createdAt
         };
         
         localStorage.setItem('userData', JSON.stringify(userData));
@@ -102,17 +109,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setIsLoading(true);
       
-      const response = await fetch('https://home-list-api.dylan-chiang.workers.dev/api/auth/login', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({ email, password }),
-      });
+      const response = await apiPost(API_ENDPOINTS.AUTH.LOGIN, { email, password });
       
-      const data = await response.json();
-      
-      if (response.ok && data.token) {
+      if (response.success && response.data?.token) {
+        const data = response.data;
         const userData = {
           id: data.user.id,
           name: data.user.name,
@@ -128,7 +128,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         return { success: true };
       } else {
-        return { success: false, error: data.message || '登录失败' };
+        return { success: false, error: response.error || '登录失败' };
       }
     } catch (error) {
       console.error('Error: Login failed', error);
@@ -143,21 +143,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setIsLoading(true);
       
-      const response = await fetch('https://home-list-api.dylan-chiang.workers.dev/api/auth/register', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          name: userData.name,
-          email: userData.email,
-          password: userData.password
-        }),
+      const response = await apiPost(API_ENDPOINTS.AUTH.REGISTER, {
+        name: userData.name,
+        email: userData.email,
+        password: userData.password
       });
       
-      const data = await response.json();
-      
-      if (response.ok && data.token) {
+      if (response.success && response.data?.token) {
+        const data = response.data;
         const userInfo = {
           id: data.user.id,
           name: data.user.name,
@@ -173,7 +166,7 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         
         return { success: true };
       } else {
-        return { success: false, error: data.message || '注册失败' };
+        return { success: false, error: response.error || '注册失败' };
       }
     } catch (error) {
       console.error('Error: Registration failed', error);
@@ -200,25 +193,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
         return { success: false, error: '请先登录' };
       }
       
-      const response = await fetch('https://home-list-api.dylan-chiang.workers.dev/api/auth/profile', {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${token}`,
-        },
-        body: JSON.stringify(updates),
-      });
+      const response = await apiPut(API_ENDPOINTS.AUTH.UPDATE, updates);
       
-      const data = await response.json();
-      
-      if (response.ok) {
+      if (response.success) {
+        const data = response.data;
         const updatedUser = { ...user, ...updates };
         localStorage.setItem('userData', JSON.stringify(updatedUser));
         setUser(updatedUser);
         
         return { success: true };
       } else {
-        return { success: false, error: data.message || '更新失败' };
+        return { success: false, error: response.error || '更新失败' };
       }
     } catch (error) {
       console.error('Error: Update failed', error);
