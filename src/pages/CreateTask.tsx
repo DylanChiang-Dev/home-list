@@ -56,7 +56,7 @@ const CreateTask: React.FC = () => {
     assigneeId: user?.id || '',
     priority: 'medium' as 'high' | 'medium' | 'low',
     type: 'regular' as 'regular' | 'long_term' | 'recurring',
-    dueDate: '',
+    dueDate: new Date().toISOString().split('T')[0], // 默認為當天
     recurringRule: null as RecurringRule | null
   });
 
@@ -75,10 +75,14 @@ const CreateTask: React.FC = () => {
     const { name, value } = e.target;
     setFormData(prev => ({ ...prev, [name]: value }));
     
-    // 当任务类型改变时，处理重复规则
+    // 当任务类型改变时，处理重复规则和截止日期
     if (name === 'type') {
       if (value === 'regular') {
-        setFormData(prev => ({ ...prev, recurringRule: null }));
+        setFormData(prev => ({ 
+          ...prev, 
+          recurringRule: null,
+          dueDate: new Date().toISOString().split('T')[0] // 普通任务默认当天
+        }));
         setShowRecurringOptions(false);
       } else if (value === 'recurring') {
         setFormData(prev => ({
@@ -90,7 +94,8 @@ const CreateTask: React.FC = () => {
       } else if (value === 'long_term') {
         setFormData(prev => ({
           ...prev,
-          recurringRule: { type: 'weekly', interval: 1, daysOfWeek: [] }
+          recurringRule: { type: 'weekly', interval: 1, daysOfWeek: [] },
+          dueDate: prev.dueDate || '' // 长期任务保持现有日期或为空
         }));
         setShowRecurringOptions(true);
       }
