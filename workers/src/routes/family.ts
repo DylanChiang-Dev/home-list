@@ -409,6 +409,36 @@ family.post('/:id/transfer', async (c) => {
   }
 });
 
+// 获取家庭成员列表
+family.get('/members', async (c) => {
+  try {
+    const user = getCurrentUser(c);
+    
+    if (!user.familyId) {
+      throw new HTTPException(400, { message: '您还没有加入任何家庭' });
+    }
+    
+    // 获取家庭成员
+    const members = await c.env.DB.prepare(`
+      SELECT id, name, email, role, created_at
+      FROM users
+      WHERE family_id = ?
+      ORDER BY 
+        CASE role WHEN 'admin' THEN 1 ELSE 2 END,
+        created_at ASC
+    `).bind(user.familyId).all();
+    
+    return c.json(members.results || []);
+    
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+    console.error('Get family members error:', error);
+    throw new HTTPException(500, { message: '获取家庭成员失败' });
+  }
+});
+
 // 获取邀请码列表
 family.get('/:id/invites', async (c) => {
   try {

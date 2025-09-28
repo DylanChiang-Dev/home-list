@@ -22,7 +22,7 @@ export const API_ENDPOINTS = {
   },
   // 家庭管理相关
   FAMILY: {
-    CREATE: `${API_BASE_URL}/api/family/create`,
+    CREATE: `${API_BASE_URL}/api/family`,
     JOIN: `${API_BASE_URL}/api/family/join`,
     MEMBERS: `${API_BASE_URL}/api/family/members`,
     INVITE: `${API_BASE_URL}/api/family/invite`,
