@@ -1,0 +1,66 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <title>API Test</title>
+</head>
+<body>
+    <h1>API Test Page</h1>
+    <button onclick="testAPI()">Test Family Create API</button>
+    <div id="result"></div>
+    
+    <script>
+        async function testAPI() {
+            const resultDiv = document.getElementById('result');
+            resultDiv.innerHTML = 'Testing...';
+            
+            try {
+                // First register a test user
+                const registerResponse = await fetch('https://home-list-api.dylan-chiang.workers.dev/api/auth/register', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json'
+                    },
+                    body: JSON.stringify({
+                        email: 'test' + Date.now() + '@example.com',
+                        password: '123456',
+                        name: '測試用戶'
+                    })
+                });
+                
+                const registerData = await registerResponse.json();
+                console.log('Register response:', registerData);
+                
+                if (registerData.token) {
+                    // Test family creation
+                    const familyResponse = await fetch('https://home-list-api.dylan-chiang.workers.dev/api/family', {
+                        method: 'POST',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${registerData.token}`
+                        },
+                        body: JSON.stringify({
+                            name: '測試家庭',
+                            description: '測試描述'
+                        })
+                    });
+                    
+                    const familyData = await familyResponse.json();
+                    console.log('Family response:', familyData);
+                    
+                    resultDiv.innerHTML = `
+                        <h3>Register Result:</h3>
+                        <pre>${JSON.stringify(registerData, null, 2)}</pre>
+                        <h3>Family Create Result:</h3>
+                        <pre>${JSON.stringify(familyData, null, 2)}</pre>
+                    `;
+                } else {
+                    resultDiv.innerHTML = `<p>Registration failed: ${JSON.stringify(registerData)}</p>`;
+                }
+            } catch (error) {
+                console.error('API test error:', error);
+                resultDiv.innerHTML = `<p>Error: ${error.message}</p>`;
+            }
+        }
+    </script>
+</body>
+</html>

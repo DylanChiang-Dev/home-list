@@ -125,10 +125,30 @@ export const apiRequest = async <T>(
     }
   } catch (error) {
     console.error('API request failed:', error);
+    console.error('Error details:', {
+      name: error.name,
+      message: error.message,
+      stack: error.stack,
+      url: url
+    });
+    
+    if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+      return { 
+        success: false, 
+        error: `网络连接失败，无法访问API服务器。请检查网络连接或稍后重试。URL: ${url}`, 
+        status: 0 
+      };
+    }
+    
     if (error instanceof SyntaxError && error.message.includes('JSON')) {
       return { success: false, error: 'API返回了无效的JSON响应，可能是HTML页面', status: 0 };
     }
-    return { success: false, error: '网络错误，请稍后重试', status: 0 };
+    
+    return { 
+      success: false, 
+      error: `网络错误：${error.message}。请稍后重试。`, 
+      status: 0 
+    };
   }
 };
 
