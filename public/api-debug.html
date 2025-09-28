@@ -1,0 +1,182 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API连接调试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin-right: 10px;
+            margin-bottom: 10px;
+        }
+        button:hover {
+            background: #0056b3;
+        }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .error { color: #dc3545; }
+        .success { color: #28a745; }
+        .warning { color: #ffc107; }
+    </style>
+</head>
+<body>
+    <h1>API连接调试工具</h1>
+    
+    <div class="container">
+        <h3>自动测试</h3>
+        <button onclick="runAllTests()">运行所有测试</button>
+        <button onclick="clearLog()">清除日志</button>
+        
+        <div id="log" class="log">准备开始测试...</div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://home-list-api.dylan-chiang.workers.dev';
+        const logElement = document.getElementById('log');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            logElement.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            console.log(`[${timestamp}] ${message}`);
+        }
+        
+        function clearLog() {
+            logElement.innerHTML = '';
+        }
+        
+        async function runAllTests() {
+            clearLog();
+            log('=== 开始完整API连接测试 ===');
+            
+            // 测试1: 基础连接
+            try {
+                log('\n1. 测试基础连接...');
+                const response = await fetch(API_BASE_URL, {
+                    method: 'GET',
+                    mode: 'cors',
+                    cache: 'no-cache'
+                });
+                log(`基础连接状态: ${response.status}`, response.ok ? 'success' : 'warning');
+            } catch (error) {
+                log(`基础连接失败: ${error.message}`, 'error');
+                log(`错误类型: ${error.name}`, 'error');
+            }
+            
+            // 测试2: OPTIONS预检
+            try {
+                log('\n2. 测试CORS预检...');
+                const optionsResponse = await fetch(`${API_BASE_URL}/api/family/members`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'GET',
+                        'Access-Control-Request-Headers': 'Content-Type,Authorization'
+                    },
+                    mode: 'cors',
+                    cache: 'no-cache'
+                });
+                log(`CORS预检状态: ${optionsResponse.status}`, optionsResponse.ok ? 'success' : 'warning');
+                
+                const corsOrigin = optionsResponse.headers.get('Access-Control-Allow-Origin');
+                log(`CORS Origin: ${corsOrigin}`, corsOrigin ? 'success' : 'error');
+            } catch (error) {
+                log(`CORS预检失败: ${error.message}`, 'error');
+                log(`错误类型: ${error.name}`, 'error');
+            }
+            
+            // 测试3: 实际API请求
+            try {
+                log('\n3. 测试API请求...');
+                const apiResponse = await fetch(`${API_BASE_URL}/api/family/members`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Authorization': 'Bearer test-token'
+                    },
+                    mode: 'cors',
+                    cache: 'no-cache'
+                });
+                log(`API请求状态: ${apiResponse.status}`, apiResponse.status === 401 ? 'success' : 'warning');
+                
+                const responseText = await apiResponse.text();
+                log(`API响应内容: ${responseText}`);
+                
+                if (apiResponse.status === 401) {
+                    log('✓ API正常工作（401认证错误符合预期）', 'success');
+                }
+            } catch (error) {
+                log(`API请求失败: ${error.message}`, 'error');
+                log(`错误类型: ${error.name}`, 'error');
+                log(`错误堆栈: ${error.stack}`, 'error');
+            }
+            
+            // 测试4: 网络环境检查
+            log('\n4. 网络环境检查...');
+            log(`当前域名: ${window.location.origin}`);
+            log(`用户代理: ${navigator.userAgent}`);
+            log(`在线状态: ${navigator.onLine ? '在线' : '离线'}`, navigator.onLine ? 'success' : 'error');
+            
+            // 测试5: 检查浏览器缓存
+            log('\n5. 缓存检查...');
+            if ('caches' in window) {
+                try {
+                    const cacheNames = await caches.keys();
+                    log(`缓存数量: ${cacheNames.length}`);
+                    cacheNames.forEach(name => log(`缓存名称: ${name}`));
+                } catch (error) {
+                    log(`缓存检查失败: ${error.message}`, 'error');
+                }
+            } else {
+                log('浏览器不支持Cache API');
+            }
+            
+            log('\n=== 测试完成 ===');
+        }
+        
+        // 页面加载时自动运行测试
+        window.onload = function() {
+            setTimeout(runAllTests, 1000);
+        };
+        
+        // 监听网络状态变化
+        window.addEventListener('online', () => {
+            log('网络已连接', 'success');
+        });
+        
+        window.addEventListener('offline', () => {
+            log('网络已断开', 'error');
+        });
+    </script>
+</body>
+</html>

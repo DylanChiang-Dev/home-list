@@ -1,0 +1,340 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>浏览器 API 测试</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #ccc;
+        }
+        .success { border-left-color: #10b981; background-color: #f0fdf4; }
+        .error { border-left-color: #ef4444; background-color: #fef2f2; }
+        .warning { border-left-color: #f59e0b; background-color: #fffbeb; }
+        .info { border-left-color: #3b82f6; background-color: #eff6ff; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { background: #9ca3af; cursor: not-allowed; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+        }
+        .timing-info {
+            font-size: 12px;
+            color: #666;
+            margin-top: 5px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 浏览器 API 测试工具</h1>
+        <p>此工具模拟前端应用的确切API请求行为，用于诊断ERR_ABORTED和Failed to fetch错误。</p>
+        
+        <button onclick="testExactFrontendBehavior()">🎯 模拟前端确切行为</button>
+        <button onclick="testWithDifferentMethods()">🔄 测试不同请求方法</button>
+        <button onclick="testConcurrentRequests()">⚡ 测试并发请求</button>
+        <button onclick="clearResults()">🗑️ 清除结果</button>
+    </div>
+    
+    <div class="container">
+        <h2>📊 测试结果</h2>
+        <div id="results"></div>
+    </div>
+    
+    <div class="container">
+        <h2>📋 详细日志</h2>
+        <pre id="logs"></pre>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://home-list-api.dylan-chiang.workers.dev';
+        const resultsDiv = document.getElementById('results');
+        const logsDiv = document.getElementById('logs');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logMessage = `[${timestamp}] ${message}\n`;
+            logsDiv.textContent += logMessage;
+            console.log(message);
+        }
+        
+        function addResult(message, type = 'info', details = '') {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${type}`;
+            resultDiv.innerHTML = `
+                <strong>${message}</strong>
+                ${details ? `<div style="margin-top: 8px; font-size: 14px;">${details}</div>` : ''}
+            `;
+            resultsDiv.appendChild(resultDiv);
+        }
+        
+        function clearResults() {
+            resultsDiv.innerHTML = '';
+            logsDiv.textContent = '';
+        }
+        
+        // 模拟前端确切的API请求函数
+        const getAuthHeaders = () => {
+            const token = localStorage.getItem('authToken');
+            return {
+                'Content-Type': 'application/json',
+                ...(token && { Authorization: `Bearer ${token}` }),
+            };
+        };
+        
+        const apiRequest = async (url, options = {}) => {
+            const startTime = performance.now();
+            
+            try {
+                log(`=== API Request Debug ===`);
+                log(`Making API request to: ${url}`);
+                log(`Using API_BASE_URL: ${API_BASE_URL}`);
+                log(`Request options: ${JSON.stringify(options)}`);
+                log(`Request headers: ${JSON.stringify(getAuthHeaders())}`);
+                
+                const response = await fetch(url, {
+                    headers: getAuthHeaders(),
+                    ...options,
+                });
+                
+                const endTime = performance.now();
+                const duration = Math.round(endTime - startTime);
+                
+                // 检查响应内容类型
+                const contentType = response.headers.get('content-type');
+                log(`Response content-type: ${contentType}`);
+                log(`Response status: ${response.status}`);
+                log(`Response URL: ${response.url}`);
+                log(`Request duration: ${duration}ms`);
+                
+                // 如果不是JSON响应，说明可能是HTML页面
+                if (!contentType || !contentType.includes('application/json')) {
+                    const text = await response.text();
+                    log(`Received non-JSON response: ${text.substring(0, 200)}`);
+                    return { 
+                        success: false, 
+                        error: `API端点返回了HTML页面而不是JSON。请检查API URL配置: ${url}`, 
+                        status: response.status,
+                        duration: duration
+                    };
+                }
+                
+                const data = await response.json();
+                
+                if (response.ok) {
+                    return { success: true, data, status: response.status, duration: duration };
+                } else {
+                    return { success: false, error: data.message || data.error || '请求失败', status: response.status, duration: duration };
+                }
+            } catch (error) {
+                const endTime = performance.now();
+                const duration = Math.round(endTime - startTime);
+                
+                log(`API request failed: ${error}`);
+                log(`Error details: ${JSON.stringify({
+                    name: error.name,
+                    message: error.message,
+                    stack: error.stack,
+                    url: url
+                })}`);
+                
+                if (error instanceof TypeError && error.message.includes('Failed to fetch')) {
+                    return { 
+                        success: false, 
+                        error: `网络连接失败，无法访问API服务器。请检查网络连接或稍后重试。URL: ${url}`, 
+                        status: 0,
+                        duration: duration
+                    };
+                }
+                
+                if (error instanceof SyntaxError && error.message.includes('JSON')) {
+                    return { success: false, error: 'API返回了无效的JSON响应，可能是HTML页面', status: 0, duration: duration };
+                }
+                
+                return { 
+                    success: false, 
+                    error: `网络错误：${error.message}。请稍后重试。`, 
+                    status: 0,
+                    duration: duration
+                };
+            }
+        };
+        
+        const apiGet = (url) => {
+            return apiRequest(url, { method: 'GET' });
+        };
+        
+        async function testExactFrontendBehavior() {
+            log('开始模拟前端确切行为测试...');
+            addResult('🎯 模拟前端确切行为测试', 'info');
+            
+            // 模拟前端的确切API端点
+            const API_ENDPOINTS = {
+                FAMILY: {
+                    MEMBERS: `${API_BASE_URL}/api/family/members`,
+                    INVITES: `${API_BASE_URL}/api/family/invites`,
+                }
+            };
+            
+            // 测试家庭成员API（模拟FamilyManagement页面的确切调用）
+            try {
+                log('测试家庭成员API...');
+                const membersResponse = await apiGet(API_ENDPOINTS.FAMILY.MEMBERS);
+                
+                if (membersResponse.success && membersResponse.data) {
+                    addResult('✅ 家庭成员API调用成功', 'success', 
+                        `状态码: ${membersResponse.status}, 耗时: ${membersResponse.duration}ms`);
+                } else {
+                    if (membersResponse.error?.includes('权限') || membersResponse.error?.includes('家庭')) {
+                        addResult('⚠️ 家庭成员API返回权限错误（符合预期）', 'warning', 
+                            `错误: ${membersResponse.error}, 耗时: ${membersResponse.duration}ms`);
+                    } else {
+                        addResult('❌ 家庭成员API调用失败', 'error', 
+                            `错误: ${membersResponse.error}, 状态码: ${membersResponse.status}, 耗时: ${membersResponse.duration}ms`);
+                    }
+                }
+            } catch (error) {
+                addResult('❌ 家庭成员API调用异常', 'error', `异常: ${error.message}`);
+            }
+            
+            // 等待一段时间再测试下一个API
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            // 测试邀请码API
+            try {
+                log('测试邀请码API...');
+                const invitesResponse = await apiGet(API_ENDPOINTS.FAMILY.INVITES);
+                
+                if (invitesResponse.success && invitesResponse.data) {
+                    addResult('✅ 邀请码API调用成功', 'success', 
+                        `状态码: ${invitesResponse.status}, 耗时: ${invitesResponse.duration}ms`);
+                } else {
+                    if (invitesResponse.error?.includes('权限') || invitesResponse.error?.includes('家庭')) {
+                        addResult('⚠️ 邀请码API返回权限错误（符合预期）', 'warning', 
+                            `错误: ${invitesResponse.error}, 耗时: ${invitesResponse.duration}ms`);
+                    } else {
+                        addResult('❌ 邀请码API调用失败', 'error', 
+                            `错误: ${invitesResponse.error}, 状态码: ${invitesResponse.status}, 耗时: ${invitesResponse.duration}ms`);
+                    }
+                }
+            } catch (error) {
+                addResult('❌ 邀请码API调用异常', 'error', `异常: ${error.message}`);
+            }
+        }
+        
+        async function testWithDifferentMethods() {
+            log('开始测试不同请求方法...');
+            addResult('🔄 测试不同请求方法', 'info');
+            
+            const testUrl = `${API_BASE_URL}/api/family/members`;
+            const methods = ['GET', 'HEAD', 'OPTIONS'];
+            
+            for (const method of methods) {
+                try {
+                    log(`测试 ${method} 方法...`);
+                    const startTime = performance.now();
+                    
+                    const response = await fetch(testUrl, {
+                        method: method,
+                        headers: getAuthHeaders(),
+                        mode: 'cors'
+                    });
+                    
+                    const endTime = performance.now();
+                    const duration = Math.round(endTime - startTime);
+                    
+                    addResult(`✅ ${method} 方法成功`, 'success', 
+                        `状态码: ${response.status}, 耗时: ${duration}ms`);
+                        
+                } catch (error) {
+                    addResult(`❌ ${method} 方法失败`, 'error', `错误: ${error.message}`);
+                }
+                
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+        
+        async function testConcurrentRequests() {
+            log('开始测试并发请求...');
+            addResult('⚡ 测试并发请求', 'info');
+            
+            const urls = [
+                `${API_BASE_URL}/api/family/members`,
+                `${API_BASE_URL}/api/family/invites`,
+                `${API_BASE_URL}/api/tasks`,
+                `${API_BASE_URL}/api/auth/me`
+            ];
+            
+            try {
+                const startTime = performance.now();
+                
+                const promises = urls.map(url => apiGet(url));
+                const results = await Promise.allSettled(promises);
+                
+                const endTime = performance.now();
+                const totalDuration = Math.round(endTime - startTime);
+                
+                let successCount = 0;
+                let errorCount = 0;
+                
+                results.forEach((result, index) => {
+                    if (result.status === 'fulfilled') {
+                        if (result.value.success || result.value.status === 401) {
+                            successCount++;
+                        } else {
+                            errorCount++;
+                        }
+                    } else {
+                        errorCount++;
+                    }
+                });
+                
+                addResult(`✅ 并发请求完成`, 'success', 
+                    `成功: ${successCount}, 失败: ${errorCount}, 总耗时: ${totalDuration}ms`);
+                    
+            } catch (error) {
+                addResult('❌ 并发请求失败', 'error', `错误: ${error.message}`);
+            }
+        }
+        
+        // 页面加载时显示当前配置
+        document.addEventListener('DOMContentLoaded', function() {
+            log('浏览器 API 测试工具已加载');
+            log(`目标 API: ${API_BASE_URL}`);
+            log(`当前页面: ${window.location.origin}`);
+            log(`用户代理: ${navigator.userAgent}`);
+        });
+    </script>
+</body>
+</html>

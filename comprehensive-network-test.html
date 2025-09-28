@@ -1,0 +1,540 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>全面网络诊断工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #2d3748;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f7fafc;
+        }
+        .test-section h3 {
+            color: #4a5568;
+            margin-top: 0;
+        }
+        .status {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: bold;
+            display: inline-block;
+            margin: 5px 0;
+        }
+        .status.success { background: #c6f6d5; color: #22543d; }
+        .status.error { background: #fed7d7; color: #742a2a; }
+        .status.warning { background: #fefcbf; color: #744210; }
+        .status.info { background: #bee3f8; color: #2a4365; }
+        .log {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            background: #4299e1;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #3182ce;
+        }
+        button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+        .progress {
+            width: 100%;
+            height: 8px;
+            background: #e2e8f0;
+            border-radius: 4px;
+            overflow: hidden;
+            margin: 10px 0;
+        }
+        .progress-bar {
+            height: 100%;
+            background: #4299e1;
+            transition: width 0.3s;
+        }
+        .results-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 20px;
+            margin: 20px 0;
+        }
+        .metric {
+            background: white;
+            padding: 15px;
+            border-radius: 8px;
+            border-left: 4px solid #4299e1;
+        }
+        .metric-value {
+            font-size: 24px;
+            font-weight: bold;
+            color: #2d3748;
+        }
+        .metric-label {
+            color: #718096;
+            font-size: 14px;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🌐 全面网络诊断工具</h1>
+        
+        <div class="controls">
+            <button onclick="runFullDiagnostic()" id="startBtn">开始全面诊断</button>
+            <button onclick="clearResults()" id="clearBtn">清除结果</button>
+            <button onclick="exportResults()" id="exportBtn">导出报告</button>
+        </div>
+        
+        <div class="progress" id="progressContainer" style="display: none;">
+            <div class="progress-bar" id="progressBar"></div>
+        </div>
+        
+        <div class="results-grid" id="metricsGrid" style="display: none;"></div>
+        
+        <div class="test-section">
+            <h3>🔍 基础连通性测试</h3>
+            <div id="connectivityStatus">等待测试...</div>
+            <div class="log" id="connectivityLog"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🚀 API端点测试</h3>
+            <div id="apiStatus">等待测试...</div>
+            <div class="log" id="apiLog"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>⚡ 性能测试</h3>
+            <div id="performanceStatus">等待测试...</div>
+            <div class="log" id="performanceLog"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🔄 重试机制测试</h3>
+            <div id="retryStatus">等待测试...</div>
+            <div class="log" id="retryLog"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>📊 网络质量分析</h3>
+            <div id="qualityStatus">等待测试...</div>
+            <div class="log" id="qualityLog"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://home-list-api.dylan-chiang.workers.dev';
+        const TEST_ENDPOINTS = [
+            '/',
+            '/api/family/members',
+            '/api/family/invites',
+            '/api/tasks',
+            '/api/auth/me'
+        ];
+        
+        let testResults = {
+            connectivity: [],
+            api: [],
+            performance: [],
+            retry: [],
+            quality: []
+        };
+        
+        function log(section, message, type = 'info') {
+            const logElement = document.getElementById(`${section}Log`);
+            const timestamp = new Date().toLocaleTimeString();
+            const emoji = {
+                'info': 'ℹ️',
+                'success': '✅',
+                'error': '❌',
+                'warning': '⚠️'
+            }[type] || 'ℹ️';
+            
+            logElement.innerHTML += `[${timestamp}] ${emoji} ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+        }
+        
+        function updateStatus(section, message, type = 'info') {
+            const statusElement = document.getElementById(`${section}Status`);
+            statusElement.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        function updateProgress(percent) {
+            const progressContainer = document.getElementById('progressContainer');
+            const progressBar = document.getElementById('progressBar');
+            progressContainer.style.display = 'block';
+            progressBar.style.width = `${percent}%`;
+        }
+        
+        function updateMetrics(metrics) {
+            const grid = document.getElementById('metricsGrid');
+            grid.style.display = 'grid';
+            grid.innerHTML = '';
+            
+            Object.entries(metrics).forEach(([key, value]) => {
+                const metric = document.createElement('div');
+                metric.className = 'metric';
+                metric.innerHTML = `
+                    <div class="metric-value">${value.value}</div>
+                    <div class="metric-label">${value.label}</div>
+                `;
+                grid.appendChild(metric);
+            });
+        }
+        
+        async function testConnectivity() {
+            log('connectivity', '开始基础连通性测试...');
+            updateStatus('connectivity', '测试中...', 'info');
+            
+            const tests = [
+                { name: 'DNS解析', test: () => fetch(`${API_BASE_URL}/`, { method: 'HEAD', mode: 'no-cors' }) },
+                { name: 'HTTPS连接', test: () => fetch(`${API_BASE_URL}/`) },
+                { name: 'CORS预检', test: () => fetch(`${API_BASE_URL}/api/family/members`, { method: 'OPTIONS' }) }
+            ];
+            
+            let passed = 0;
+            for (const { name, test } of tests) {
+                try {
+                    const start = performance.now();
+                    await test();
+                    const duration = performance.now() - start;
+                    log('connectivity', `${name}: 成功 (${duration.toFixed(2)}ms)`, 'success');
+                    testResults.connectivity.push({ name, status: 'success', duration });
+                    passed++;
+                } catch (error) {
+                    log('connectivity', `${name}: 失败 - ${error.message}`, 'error');
+                    testResults.connectivity.push({ name, status: 'error', error: error.message });
+                }
+            }
+            
+            const status = passed === tests.length ? 'success' : passed > 0 ? 'warning' : 'error';
+            updateStatus('connectivity', `连通性测试完成: ${passed}/${tests.length} 通过`, status);
+        }
+        
+        async function testAPIEndpoints() {
+            log('api', '开始API端点测试...');
+            updateStatus('api', '测试中...', 'info');
+            
+            let passed = 0;
+            for (const endpoint of TEST_ENDPOINTS) {
+                try {
+                    const start = performance.now();
+                    const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+                        headers: {
+                            'Origin': 'http://localhost:5173',
+                            'Content-Type': 'application/json'
+                        }
+                    });
+                    const duration = performance.now() - start;
+                    
+                    const result = {
+                        endpoint,
+                        status: response.status,
+                        duration,
+                        headers: Object.fromEntries(response.headers.entries())
+                    };
+                    
+                    if (response.status < 500) {
+                        log('api', `${endpoint}: HTTP ${response.status} (${duration.toFixed(2)}ms)`, 'success');
+                        testResults.api.push({ ...result, result: 'success' });
+                        passed++;
+                    } else {
+                        log('api', `${endpoint}: HTTP ${response.status} - 服务器错误`, 'error');
+                        testResults.api.push({ ...result, result: 'error' });
+                    }
+                } catch (error) {
+                    log('api', `${endpoint}: 网络错误 - ${error.message}`, 'error');
+                    testResults.api.push({ endpoint, result: 'error', error: error.message });
+                }
+            }
+            
+            const status = passed === TEST_ENDPOINTS.length ? 'success' : passed > 0 ? 'warning' : 'error';
+            updateStatus('api', `API测试完成: ${passed}/${TEST_ENDPOINTS.length} 可访问`, status);
+        }
+        
+        async function testPerformance() {
+            log('performance', '开始性能测试...');
+            updateStatus('performance', '测试中...', 'info');
+            
+            const testCases = [
+                { name: '单次请求', count: 1 },
+                { name: '并发请求(5)', count: 5 },
+                { name: '连续请求(10)', count: 10, sequential: true }
+            ];
+            
+            for (const { name, count, sequential } of testCases) {
+                try {
+                    const start = performance.now();
+                    
+                    if (sequential) {
+                        for (let i = 0; i < count; i++) {
+                            await fetch(`${API_BASE_URL}/api/family/members`);
+                        }
+                    } else {
+                        const promises = Array(count).fill().map(() => 
+                            fetch(`${API_BASE_URL}/api/family/members`)
+                        );
+                        await Promise.all(promises);
+                    }
+                    
+                    const duration = performance.now() - start;
+                    const avgDuration = duration / count;
+                    
+                    log('performance', `${name}: 总时间 ${duration.toFixed(2)}ms, 平均 ${avgDuration.toFixed(2)}ms`, 'success');
+                    testResults.performance.push({ name, totalDuration: duration, avgDuration, count });
+                } catch (error) {
+                    log('performance', `${name}: 失败 - ${error.message}`, 'error');
+                    testResults.performance.push({ name, error: error.message });
+                }
+            }
+            
+            updateStatus('performance', '性能测试完成', 'success');
+        }
+        
+        async function testRetryMechanism() {
+            log('retry', '开始重试机制测试...');
+            updateStatus('retry', '测试中...', 'info');
+            
+            // 模拟网络中断
+            const controller = new AbortController();
+            setTimeout(() => controller.abort(), 100); // 100ms后中断
+            
+            try {
+                await fetch(`${API_BASE_URL}/api/family/members`, {
+                    signal: controller.signal
+                });
+                log('retry', '意外：请求应该被中断', 'warning');
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    log('retry', '成功模拟网络中断', 'success');
+                    testResults.retry.push({ test: 'abort', status: 'success' });
+                } else {
+                    log('retry', `中断测试失败: ${error.message}`, 'error');
+                    testResults.retry.push({ test: 'abort', status: 'error', error: error.message });
+                }
+            }
+            
+            // 测试超时
+            const timeoutController = new AbortController();
+            setTimeout(() => timeoutController.abort(), 5000);
+            
+            try {
+                const start = performance.now();
+                await fetch(`${API_BASE_URL}/api/family/members`, {
+                    signal: timeoutController.signal
+                });
+                const duration = performance.now() - start;
+                log('retry', `超时测试: 请求完成 (${duration.toFixed(2)}ms)`, 'success');
+                testResults.retry.push({ test: 'timeout', status: 'success', duration });
+            } catch (error) {
+                log('retry', `超时测试: ${error.message}`, 'warning');
+                testResults.retry.push({ test: 'timeout', status: 'timeout', error: error.message });
+            }
+            
+            updateStatus('retry', '重试机制测试完成', 'success');
+        }
+        
+        async function analyzeNetworkQuality() {
+            log('quality', '开始网络质量分析...');
+            updateStatus('quality', '分析中...', 'info');
+            
+            // 计算平均响应时间
+            const apiTimes = testResults.api.filter(r => r.duration).map(r => r.duration);
+            const avgResponseTime = apiTimes.length > 0 ? apiTimes.reduce((a, b) => a + b, 0) / apiTimes.length : 0;
+            
+            // 计算成功率
+            const totalTests = testResults.api.length + testResults.connectivity.length;
+            const successfulTests = testResults.api.filter(r => r.result === 'success').length + 
+                                  testResults.connectivity.filter(r => r.status === 'success').length;
+            const successRate = totalTests > 0 ? (successfulTests / totalTests) * 100 : 0;
+            
+            // 网络质量评级
+            let quality = 'unknown';
+            if (successRate >= 90 && avgResponseTime < 1000) {
+                quality = 'excellent';
+            } else if (successRate >= 75 && avgResponseTime < 2000) {
+                quality = 'good';
+            } else if (successRate >= 50 && avgResponseTime < 5000) {
+                quality = 'fair';
+            } else {
+                quality = 'poor';
+            }
+            
+            const qualityLabels = {
+                'excellent': '优秀',
+                'good': '良好',
+                'fair': '一般',
+                'poor': '较差',
+                'unknown': '未知'
+            };
+            
+            log('quality', `平均响应时间: ${avgResponseTime.toFixed(2)}ms`, 'info');
+            log('quality', `成功率: ${successRate.toFixed(1)}%`, 'info');
+            log('quality', `网络质量: ${qualityLabels[quality]}`, quality === 'excellent' || quality === 'good' ? 'success' : 'warning');
+            
+            testResults.quality = {
+                avgResponseTime,
+                successRate,
+                quality,
+                qualityLabel: qualityLabels[quality]
+            };
+            
+            updateStatus('quality', `网络质量分析完成: ${qualityLabels[quality]}`, quality === 'excellent' || quality === 'good' ? 'success' : 'warning');
+            
+            // 更新指标显示
+            updateMetrics({
+                responseTime: { value: `${avgResponseTime.toFixed(0)}ms`, label: '平均响应时间' },
+                successRate: { value: `${successRate.toFixed(1)}%`, label: '成功率' },
+                quality: { value: qualityLabels[quality], label: '网络质量' },
+                totalTests: { value: totalTests, label: '总测试数' }
+            });
+        }
+        
+        async function runFullDiagnostic() {
+            const startBtn = document.getElementById('startBtn');
+            startBtn.disabled = true;
+            startBtn.textContent = '诊断中...';
+            
+            testResults = { connectivity: [], api: [], performance: [], retry: [], quality: [] };
+            
+            try {
+                updateProgress(10);
+                await testConnectivity();
+                
+                updateProgress(30);
+                await testAPIEndpoints();
+                
+                updateProgress(50);
+                await testPerformance();
+                
+                updateProgress(70);
+                await testRetryMechanism();
+                
+                updateProgress(90);
+                await analyzeNetworkQuality();
+                
+                updateProgress(100);
+                
+                // 生成诊断建议
+                generateRecommendations();
+                
+            } catch (error) {
+                console.error('诊断过程中发生错误:', error);
+            } finally {
+                startBtn.disabled = false;
+                startBtn.textContent = '重新诊断';
+            }
+        }
+        
+        function generateRecommendations() {
+            const quality = testResults.quality;
+            let recommendations = [];
+            
+            if (quality.successRate < 80) {
+                recommendations.push('• 网络连接不稳定，建议检查网络设置');
+            }
+            
+            if (quality.avgResponseTime > 2000) {
+                recommendations.push('• 响应时间较慢，可能是网络延迟或服务器负载问题');
+            }
+            
+            const failedConnectivity = testResults.connectivity.filter(r => r.status === 'error');
+            if (failedConnectivity.length > 0) {
+                recommendations.push('• 基础连通性测试失败，请检查防火墙和DNS设置');
+            }
+            
+            const failedAPI = testResults.api.filter(r => r.result === 'error');
+            if (failedAPI.length > 0) {
+                recommendations.push('• 部分API端点无法访问，可能是服务器问题');
+            }
+            
+            if (recommendations.length > 0) {
+                log('quality', '诊断建议:', 'info');
+                recommendations.forEach(rec => log('quality', rec, 'warning'));
+            } else {
+                log('quality', '网络状况良好，无需特殊处理', 'success');
+            }
+        }
+        
+        function clearResults() {
+            ['connectivity', 'api', 'performance', 'retry', 'quality'].forEach(section => {
+                document.getElementById(`${section}Log`).innerHTML = '';
+                updateStatus(section, '等待测试...');
+            });
+            
+            document.getElementById('progressContainer').style.display = 'none';
+            document.getElementById('metricsGrid').style.display = 'none';
+            testResults = { connectivity: [], api: [], performance: [], retry: [], quality: [] };
+        }
+        
+        function exportResults() {
+            const report = {
+                timestamp: new Date().toISOString(),
+                userAgent: navigator.userAgent,
+                results: testResults,
+                summary: {
+                    totalTests: Object.values(testResults).flat().length,
+                    networkQuality: testResults.quality.qualityLabel || '未知'
+                }
+            };
+            
+            const blob = new Blob([JSON.stringify(report, null, 2)], { type: 'application/json' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `network-diagnostic-${new Date().toISOString().split('T')[0]}.json`;
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        }
+        
+        // 页面加载完成后自动运行一次基础测试
+        window.addEventListener('load', () => {
+            setTimeout(() => {
+                log('connectivity', '页面加载完成，可以开始诊断', 'info');
+            }, 1000);
+        });
+    </script>
+</body>
+</html>

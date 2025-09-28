@@ -1,0 +1,558 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>前端错误诊断工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1000px;
+            margin: 0 auto;
+            padding: 20px;
+            background: linear-gradient(135deg, #ff6b6b 0%, #ee5a24 100%);
+            min-height: 100vh;
+        }
+        .container {
+            background: white;
+            border-radius: 12px;
+            padding: 30px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.2);
+        }
+        h1 {
+            color: #2d3748;
+            text-align: center;
+            margin-bottom: 30px;
+        }
+        .test-section {
+            margin: 20px 0;
+            padding: 20px;
+            border: 2px solid #e2e8f0;
+            border-radius: 8px;
+            background: #f7fafc;
+        }
+        .test-section h3 {
+            color: #4a5568;
+            margin-top: 0;
+        }
+        .status {
+            padding: 8px 16px;
+            border-radius: 6px;
+            font-weight: bold;
+            display: inline-block;
+            margin: 5px 0;
+        }
+        .status.success { background: #c6f6d5; color: #22543d; }
+        .status.error { background: #fed7d7; color: #742a2a; }
+        .status.warning { background: #fefcbf; color: #744210; }
+        .status.info { background: #bee3f8; color: #2a4365; }
+        .log {
+            background: #1a202c;
+            color: #e2e8f0;
+            padding: 15px;
+            border-radius: 6px;
+            font-family: 'Monaco', 'Menlo', monospace;
+            font-size: 12px;
+            max-height: 300px;
+            overflow-y: auto;
+            margin: 10px 0;
+        }
+        .controls {
+            text-align: center;
+            margin: 20px 0;
+        }
+        button {
+            background: #e53e3e;
+            color: white;
+            border: none;
+            padding: 12px 24px;
+            border-radius: 6px;
+            cursor: pointer;
+            font-size: 16px;
+            margin: 0 10px;
+            transition: background 0.2s;
+        }
+        button:hover {
+            background: #c53030;
+        }
+        button:disabled {
+            background: #a0aec0;
+            cursor: not-allowed;
+        }
+        .error-count {
+            background: #fed7d7;
+            color: #742a2a;
+            padding: 10px;
+            border-radius: 6px;
+            margin: 10px 0;
+            font-weight: bold;
+        }
+        .solution {
+            background: #c6f6d5;
+            color: #22543d;
+            padding: 15px;
+            border-radius: 6px;
+            margin: 10px 0;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔧 前端错误诊断工具</h1>
+        
+        <div class="controls">
+            <button onclick="runErrorDiagnosis()" id="startBtn">开始错误诊断</button>
+            <button onclick="simulateErrors()" id="simulateBtn">模拟错误场景</button>
+            <button onclick="clearLogs()" id="clearBtn">清除日志</button>
+        </div>
+        
+        <div id="errorSummary" style="display: none;"></div>
+        
+        <div class="test-section">
+            <h3>🚫 ERR_ABORTED 错误检测</h3>
+            <div id="abortStatus">等待测试...</div>
+            <div class="log" id="abortLog"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>⏱️ 超时和取消测试</h3>
+            <div id="timeoutStatus">等待测试...</div>
+            <div class="log" id="timeoutLog"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🔄 重复请求检测</h3>
+            <div id="duplicateStatus">等待测试...</div>
+            <div class="log" id="duplicateLog"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>🌐 浏览器兼容性测试</h3>
+            <div id="compatibilityStatus">等待测试...</div>
+            <div class="log" id="compatibilityLog"></div>
+        </div>
+        
+        <div class="test-section">
+            <h3>💡 解决方案建议</h3>
+            <div id="solutionStatus">等待诊断...</div>
+            <div id="solutionLog"></div>
+        </div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://home-list-api.dylan-chiang.workers.dev';
+        let errorCount = 0;
+        let testResults = {
+            aborted: [],
+            timeout: [],
+            duplicate: [],
+            compatibility: []
+        };
+        
+        function log(section, message, type = 'info') {
+            const logElement = document.getElementById(`${section}Log`);
+            const timestamp = new Date().toLocaleTimeString();
+            const emoji = {
+                'info': 'ℹ️',
+                'success': '✅',
+                'error': '❌',
+                'warning': '⚠️'
+            }[type] || 'ℹ️';
+            
+            logElement.innerHTML += `[${timestamp}] ${emoji} ${message}\n`;
+            logElement.scrollTop = logElement.scrollHeight;
+            
+            if (type === 'error') {
+                errorCount++;
+                updateErrorSummary();
+            }
+        }
+        
+        function updateStatus(section, message, type = 'info') {
+            const statusElement = document.getElementById(`${section}Status`);
+            statusElement.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        function updateErrorSummary() {
+            const summaryElement = document.getElementById('errorSummary');
+            if (errorCount > 0) {
+                summaryElement.style.display = 'block';
+                summaryElement.innerHTML = `<div class="error-count">检测到 ${errorCount} 个错误</div>`;
+            } else {
+                summaryElement.style.display = 'none';
+            }
+        }
+        
+        async function testAbortedErrors() {
+            log('abort', '开始ERR_ABORTED错误检测...', 'info');
+            updateStatus('abort', '测试中...', 'info');
+            
+            // 测试1: 立即取消请求
+            try {
+                const controller = new AbortController();
+                const fetchPromise = fetch(`${API_BASE_URL}/api/family/members`, {
+                    signal: controller.signal,
+                    headers: {
+                        'Origin': 'http://localhost:5173',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                // 立即取消
+                controller.abort();
+                
+                await fetchPromise;
+                log('abort', '意外：请求应该被取消', 'warning');
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    log('abort', '✓ 成功检测到AbortError', 'success');
+                    testResults.aborted.push({ test: 'immediate_abort', status: 'detected' });
+                } else {
+                    log('abort', `✗ 意外错误: ${error.name} - ${error.message}`, 'error');
+                    testResults.aborted.push({ test: 'immediate_abort', error: error.message });
+                }
+            }
+            
+            // 测试2: 延迟取消
+            try {
+                const controller = new AbortController();
+                const fetchPromise = fetch(`${API_BASE_URL}/api/family/members`, {
+                    signal: controller.signal,
+                    headers: {
+                        'Origin': 'http://localhost:5173',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                // 50ms后取消
+                setTimeout(() => controller.abort(), 50);
+                
+                await fetchPromise;
+                log('abort', '请求在取消前完成', 'info');
+                testResults.aborted.push({ test: 'delayed_abort', status: 'completed' });
+            } catch (error) {
+                if (error.name === 'AbortError') {
+                    log('abort', '✓ 延迟取消成功检测', 'success');
+                    testResults.aborted.push({ test: 'delayed_abort', status: 'aborted' });
+                } else {
+                    log('abort', `✗ 延迟取消错误: ${error.name} - ${error.message}`, 'error');
+                    testResults.aborted.push({ test: 'delayed_abort', error: error.message });
+                }
+            }
+            
+            // 测试3: 页面卸载模拟
+            try {
+                log('abort', '模拟页面卸载场景...', 'info');
+                const controller = new AbortController();
+                
+                // 模拟beforeunload事件
+                window.addEventListener('beforeunload', () => {
+                    controller.abort();
+                });
+                
+                const response = await fetch(`${API_BASE_URL}/api/family/members`, {
+                    signal: controller.signal,
+                    headers: {
+                        'Origin': 'http://localhost:5173',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                log('abort', `页面卸载测试完成: HTTP ${response.status}`, 'success');
+                testResults.aborted.push({ test: 'page_unload', status: 'completed' });
+            } catch (error) {
+                log('abort', `页面卸载测试错误: ${error.name} - ${error.message}`, 'error');
+                testResults.aborted.push({ test: 'page_unload', error: error.message });
+            }
+            
+            updateStatus('abort', 'ERR_ABORTED检测完成', 'success');
+        }
+        
+        async function testTimeoutScenarios() {
+            log('timeout', '开始超时和取消测试...', 'info');
+            updateStatus('timeout', '测试中...', 'info');
+            
+            // 测试1: 短超时
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    controller.abort();
+                    log('timeout', '请求因超时被取消', 'warning');
+                }, 100); // 100ms超时
+                
+                const response = await fetch(`${API_BASE_URL}/api/family/members`, {
+                    signal: controller.signal,
+                    headers: {
+                        'Origin': 'http://localhost:5173',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                clearTimeout(timeoutId);
+                log('timeout', `短超时测试: 请求在超时前完成 HTTP ${response.status}`, 'success');
+                testResults.timeout.push({ test: 'short_timeout', status: 'completed' });
+            } catch (error) {
+                log('timeout', `短超时测试错误: ${error.name} - ${error.message}`, 'error');
+                testResults.timeout.push({ test: 'short_timeout', error: error.message });
+            }
+            
+            // 测试2: 正常超时
+            try {
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => {
+                    controller.abort();
+                }, 5000); // 5秒超时
+                
+                const response = await fetch(`${API_BASE_URL}/api/family/members`, {
+                    signal: controller.signal,
+                    headers: {
+                        'Origin': 'http://localhost:5173',
+                        'Content-Type': 'application/json'
+                    }
+                });
+                
+                clearTimeout(timeoutId);
+                log('timeout', `正常超时测试: HTTP ${response.status}`, 'success');
+                testResults.timeout.push({ test: 'normal_timeout', status: 'completed' });
+            } catch (error) {
+                log('timeout', `正常超时测试错误: ${error.name} - ${error.message}`, 'error');
+                testResults.timeout.push({ test: 'normal_timeout', error: error.message });
+            }
+            
+            updateStatus('timeout', '超时测试完成', 'success');
+        }
+        
+        async function testDuplicateRequests() {
+            log('duplicate', '开始重复请求检测...', 'info');
+            updateStatus('duplicate', '测试中...', 'info');
+            
+            // 测试快速连续请求
+            const requests = [];
+            const startTime = Date.now();
+            
+            for (let i = 0; i < 5; i++) {
+                requests.push(
+                    fetch(`${API_BASE_URL}/api/family/members`, {
+                        headers: {
+                            'Origin': 'http://localhost:5173',
+                            'Content-Type': 'application/json'
+                        }
+                    }).then(response => ({
+                        index: i,
+                        status: response.status,
+                        timestamp: Date.now() - startTime
+                    })).catch(error => ({
+                        index: i,
+                        error: error.message,
+                        timestamp: Date.now() - startTime
+                    }))
+                );
+            }
+            
+            try {
+                const results = await Promise.all(requests);
+                results.forEach(result => {
+                    if (result.error) {
+                        log('duplicate', `请求 ${result.index}: 错误 - ${result.error} (${result.timestamp}ms)`, 'error');
+                    } else {
+                        log('duplicate', `请求 ${result.index}: HTTP ${result.status} (${result.timestamp}ms)`, 'success');
+                    }
+                });
+                
+                testResults.duplicate = results;
+                updateStatus('duplicate', '重复请求测试完成', 'success');
+            } catch (error) {
+                log('duplicate', `重复请求测试失败: ${error.message}`, 'error');
+                testResults.duplicate.push({ error: error.message });
+            }
+        }
+        
+        async function testBrowserCompatibility() {
+            log('compatibility', '开始浏览器兼容性测试...', 'info');
+            updateStatus('compatibility', '测试中...', 'info');
+            
+            // 检测浏览器信息
+            const browserInfo = {
+                userAgent: navigator.userAgent,
+                vendor: navigator.vendor,
+                platform: navigator.platform,
+                cookieEnabled: navigator.cookieEnabled,
+                onLine: navigator.onLine
+            };
+            
+            log('compatibility', `浏览器: ${browserInfo.userAgent}`, 'info');
+            log('compatibility', `平台: ${browserInfo.platform}`, 'info');
+            log('compatibility', `Cookie启用: ${browserInfo.cookieEnabled}`, 'info');
+            log('compatibility', `在线状态: ${browserInfo.onLine}`, 'info');
+            
+            // 检测Fetch API支持
+            if (typeof fetch === 'function') {
+                log('compatibility', '✓ Fetch API 支持', 'success');
+            } else {
+                log('compatibility', '✗ Fetch API 不支持', 'error');
+            }
+            
+            // 检测AbortController支持
+            if (typeof AbortController === 'function') {
+                log('compatibility', '✓ AbortController 支持', 'success');
+            } else {
+                log('compatibility', '✗ AbortController 不支持', 'error');
+            }
+            
+            // 检测Promise支持
+            if (typeof Promise === 'function') {
+                log('compatibility', '✓ Promise 支持', 'success');
+            } else {
+                log('compatibility', '✗ Promise 不支持', 'error');
+            }
+            
+            testResults.compatibility = browserInfo;
+            updateStatus('compatibility', '兼容性测试完成', 'success');
+        }
+        
+        function generateSolutions() {
+            const solutionLog = document.getElementById('solutionLog');
+            solutionLog.innerHTML = '';
+            
+            const solutions = [];
+            
+            // 基于测试结果生成解决方案
+            const abortErrors = testResults.aborted.filter(r => r.error || r.status === 'aborted').length;
+            const timeoutErrors = testResults.timeout.filter(r => r.error).length;
+            const duplicateErrors = testResults.duplicate.filter(r => r.error).length;
+            
+            if (abortErrors > 0) {
+                solutions.push({
+                    title: '解决 ERR_ABORTED 错误',
+                    content: `
+                        1. 检查是否有重复的AbortController调用
+                        2. 确保在组件卸载时正确清理请求
+                        3. 避免在短时间内发起大量请求
+                        4. 使用防抖(debounce)或节流(throttle)控制请求频率
+                    `
+                });
+            }
+            
+            if (timeoutErrors > 0) {
+                solutions.push({
+                    title: '解决超时问题',
+                    content: `
+                        1. 增加请求超时时间设置
+                        2. 实现请求重试机制
+                        3. 检查网络连接状况
+                        4. 优化API响应速度
+                    `
+                });
+            }
+            
+            if (duplicateErrors > 0) {
+                solutions.push({
+                    title: '解决重复请求问题',
+                    content: `
+                        1. 实现请求去重机制
+                        2. 使用loading状态防止重复点击
+                        3. 缓存请求结果避免重复调用
+                        4. 使用SWR或React Query等数据获取库
+                    `
+                });
+            }
+            
+            // 通用解决方案
+            solutions.push({
+                title: '通用优化建议',
+                content: `
+                    1. 在api.ts中添加更robust的错误处理
+                    2. 实现指数退避重试策略
+                    3. 添加请求拦截器统一处理错误
+                    4. 使用React.useEffect的cleanup函数取消请求
+                    5. 考虑使用Service Worker缓存策略
+                `
+            });
+            
+            solutions.forEach(solution => {
+                const solutionDiv = document.createElement('div');
+                solutionDiv.className = 'solution';
+                solutionDiv.innerHTML = `
+                    <h4>${solution.title}</h4>
+                    <pre>${solution.content}</pre>
+                `;
+                solutionLog.appendChild(solutionDiv);
+            });
+            
+            updateStatus('solution', `生成了 ${solutions.length} 个解决方案`, 'success');
+        }
+        
+        async function simulateErrors() {
+            log('abort', '模拟ERR_ABORTED场景...', 'warning');
+            
+            // 模拟快速取消多个请求
+            const controllers = [];
+            for (let i = 0; i < 3; i++) {
+                const controller = new AbortController();
+                controllers.push(controller);
+                
+                fetch(`${API_BASE_URL}/api/family/members`, {
+                    signal: controller.signal,
+                    headers: {
+                        'Origin': 'http://localhost:5173',
+                        'Content-Type': 'application/json'
+                    }
+                }).catch(error => {
+                    if (error.name === 'AbortError') {
+                        log('abort', `模拟请求 ${i} 被取消`, 'error');
+                    }
+                });
+                
+                // 随机时间后取消
+                setTimeout(() => controller.abort(), Math.random() * 100);
+            }
+        }
+        
+        async function runErrorDiagnosis() {
+            const startBtn = document.getElementById('startBtn');
+            startBtn.disabled = true;
+            startBtn.textContent = '诊断中...';
+            
+            errorCount = 0;
+            testResults = { aborted: [], timeout: [], duplicate: [], compatibility: [] };
+            
+            try {
+                await testAbortedErrors();
+                await testTimeoutScenarios();
+                await testDuplicateRequests();
+                await testBrowserCompatibility();
+                
+                generateSolutions();
+                
+            } catch (error) {
+                console.error('诊断过程中发生错误:', error);
+            } finally {
+                startBtn.disabled = false;
+                startBtn.textContent = '重新诊断';
+            }
+        }
+        
+        function clearLogs() {
+            ['abort', 'timeout', 'duplicate', 'compatibility'].forEach(section => {
+                document.getElementById(`${section}Log`).innerHTML = '';
+                updateStatus(section, '等待测试...');
+            });
+            
+            document.getElementById('solutionLog').innerHTML = '';
+            updateStatus('solution', '等待诊断...');
+            
+            errorCount = 0;
+            updateErrorSummary();
+        }
+        
+        // 监听全局错误
+        window.addEventListener('error', (event) => {
+            log('compatibility', `全局错误: ${event.error.message}`, 'error');
+        });
+        
+        window.addEventListener('unhandledrejection', (event) => {
+            log('compatibility', `未处理的Promise拒绝: ${event.reason}`, 'error');
+        });
+    </script>
+</body>
+</html>

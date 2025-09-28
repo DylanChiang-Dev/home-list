@@ -1,0 +1,276 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API 网络诊断工具</title>
+    <style>
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            border-radius: 8px;
+            padding: 20px;
+            box-shadow: 0 2px 10px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        .test-result {
+            margin: 10px 0;
+            padding: 10px;
+            border-radius: 4px;
+            border-left: 4px solid #ccc;
+        }
+        .success { border-left-color: #10b981; background-color: #f0fdf4; }
+        .error { border-left-color: #ef4444; background-color: #fef2f2; }
+        .warning { border-left-color: #f59e0b; background-color: #fffbeb; }
+        .info { border-left-color: #3b82f6; background-color: #eff6ff; }
+        button {
+            background: #3b82f6;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #2563eb; }
+        button:disabled { background: #9ca3af; cursor: not-allowed; }
+        pre {
+            background: #f8f9fa;
+            padding: 10px;
+            border-radius: 4px;
+            overflow-x: auto;
+            font-size: 12px;
+        }
+        .status-indicator {
+            display: inline-block;
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+            margin-right: 8px;
+        }
+        .status-online { background-color: #10b981; }
+        .status-offline { background-color: #ef4444; }
+        .status-unknown { background-color: #f59e0b; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 API 网络诊断工具</h1>
+        <p>此工具用于诊断 Workers API 连接问题，特别是 ERR_ABORTED 和 Failed to fetch 错误。</p>
+        
+        <div class="test-result info">
+            <strong>API 基础 URL:</strong> <span id="apiUrl">https://home-list-api.dylan-chiang.workers.dev</span>
+            <span class="status-indicator status-unknown" id="apiStatus"></span>
+        </div>
+        
+        <button onclick="runAllTests()">🚀 运行完整诊断</button>
+        <button onclick="testBasicConnectivity()">🌐 基础连通性测试</button>
+        <button onclick="testApiEndpoints()">🔗 API 端点测试</button>
+        <button onclick="testCorsHeaders()">🔒 CORS 配置测试</button>
+        <button onclick="clearResults()">🗑️ 清除结果</button>
+    </div>
+    
+    <div class="container">
+        <h2>📊 诊断结果</h2>
+        <div id="results"></div>
+    </div>
+    
+    <div class="container">
+        <h2>📋 详细日志</h2>
+        <pre id="logs"></pre>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://home-list-api.dylan-chiang.workers.dev';
+        const resultsDiv = document.getElementById('results');
+        const logsDiv = document.getElementById('logs');
+        
+        function log(message, type = 'info') {
+            const timestamp = new Date().toLocaleTimeString();
+            const logMessage = `[${timestamp}] ${message}\n`;
+            logsDiv.textContent += logMessage;
+            console.log(message);
+        }
+        
+        function addResult(message, type = 'info', details = '') {
+            const resultDiv = document.createElement('div');
+            resultDiv.className = `test-result ${type}`;
+            resultDiv.innerHTML = `
+                <strong>${message}</strong>
+                ${details ? `<div style="margin-top: 8px; font-size: 14px;">${details}</div>` : ''}
+            `;
+            resultsDiv.appendChild(resultDiv);
+        }
+        
+        function clearResults() {
+            resultsDiv.innerHTML = '';
+            logsDiv.textContent = '';
+        }
+        
+        async function testBasicConnectivity() {
+            log('开始基础连通性测试...');
+            addResult('🌐 基础连通性测试', 'info');
+            
+            try {
+                // 测试基础 HEAD 请求
+                const controller = new AbortController();
+                const timeoutId = setTimeout(() => controller.abort(), 10000);
+                
+                const response = await fetch(API_BASE_URL, {
+                    method: 'HEAD',
+                    signal: controller.signal,
+                    mode: 'cors'
+                });
+                
+                clearTimeout(timeoutId);
+                
+                if (response.ok) {
+                    addResult('✅ 基础连接成功', 'success', `状态码: ${response.status}`);
+                    document.getElementById('apiStatus').className = 'status-indicator status-online';
+                    log(`基础连接成功，状态码: ${response.status}`);
+                } else {
+                    addResult('⚠️ 基础连接异常', 'warning', `状态码: ${response.status}`);
+                    log(`基础连接异常，状态码: ${response.status}`);
+                }
+                
+            } catch (error) {
+                document.getElementById('apiStatus').className = 'status-indicator status-offline';
+                
+                if (error.name === 'AbortError') {
+                    addResult('❌ 连接超时', 'error', '请求在10秒内未完成');
+                    log('连接超时：请求在10秒内未完成');
+                } else if (error.message.includes('Failed to fetch')) {
+                    addResult('❌ 网络连接失败', 'error', 'Failed to fetch - 可能是网络问题或CORS问题');
+                    log(`网络连接失败: ${error.message}`);
+                } else {
+                    addResult('❌ 连接错误', 'error', error.message);
+                    log(`连接错误: ${error.message}`);
+                }
+            }
+        }
+        
+        async function testApiEndpoints() {
+            log('开始 API 端点测试...');
+            addResult('🔗 API 端点测试', 'info');
+            
+            const endpoints = [
+                { path: '/api/family/members', name: '家庭成员' },
+                { path: '/api/family/invites', name: '邀请码' },
+                { path: '/api/tasks', name: '任务列表' },
+                { path: '/api/auth/me', name: '用户信息' }
+            ];
+            
+            for (const endpoint of endpoints) {
+                try {
+                    log(`测试端点: ${endpoint.path}`);
+                    
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 8000);
+                    
+                    const response = await fetch(`${API_BASE_URL}${endpoint.path}`, {
+                        method: 'GET',
+                        signal: controller.signal,
+                        headers: {
+                            'Content-Type': 'application/json'
+                        },
+                        mode: 'cors'
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    const contentType = response.headers.get('content-type');
+                    
+                    if (response.status === 401) {
+                        addResult(`✅ ${endpoint.name} 端点正常`, 'success', `返回401认证错误（符合预期）`);
+                        log(`${endpoint.path} 端点正常，返回401认证错误`);
+                    } else if (response.ok) {
+                        addResult(`✅ ${endpoint.name} 端点正常`, 'success', `状态码: ${response.status}`);
+                        log(`${endpoint.path} 端点正常，状态码: ${response.status}`);
+                    } else {
+                        addResult(`⚠️ ${endpoint.name} 端点异常`, 'warning', `状态码: ${response.status}, Content-Type: ${contentType}`);
+                        log(`${endpoint.path} 端点异常，状态码: ${response.status}`);
+                    }
+                    
+                } catch (error) {
+                    if (error.name === 'AbortError') {
+                        addResult(`❌ ${endpoint.name} 超时`, 'error', '请求在8秒内未完成');
+                        log(`${endpoint.path} 请求超时`);
+                    } else {
+                        addResult(`❌ ${endpoint.name} 失败`, 'error', error.message);
+                        log(`${endpoint.path} 请求失败: ${error.message}`);
+                    }
+                }
+                
+                // 添加延迟避免请求过于频繁
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+        
+        async function testCorsHeaders() {
+            log('开始 CORS 配置测试...');
+            addResult('🔒 CORS 配置测试', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/family/members`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'GET',
+                        'Access-Control-Request-Headers': 'Content-Type,Authorization'
+                    }
+                });
+                
+                const corsHeaders = {
+                    'Access-Control-Allow-Origin': response.headers.get('Access-Control-Allow-Origin'),
+                    'Access-Control-Allow-Methods': response.headers.get('Access-Control-Allow-Methods'),
+                    'Access-Control-Allow-Headers': response.headers.get('Access-Control-Allow-Headers'),
+                    'Access-Control-Allow-Credentials': response.headers.get('Access-Control-Allow-Credentials')
+                };
+                
+                log(`CORS 头信息: ${JSON.stringify(corsHeaders, null, 2)}`);
+                
+                if (corsHeaders['Access-Control-Allow-Origin']) {
+                    addResult('✅ CORS 配置正常', 'success', `允许的源: ${corsHeaders['Access-Control-Allow-Origin']}`);
+                } else {
+                    addResult('⚠️ CORS 配置可能有问题', 'warning', 'Access-Control-Allow-Origin 头缺失');
+                }
+                
+            } catch (error) {
+                addResult('❌ CORS 测试失败', 'error', error.message);
+                log(`CORS 测试失败: ${error.message}`);
+            }
+        }
+        
+        async function runAllTests() {
+            clearResults();
+            log('开始完整诊断...');
+            
+            addResult('🚀 开始完整 API 诊断', 'info', '正在运行所有测试...');
+            
+            await testBasicConnectivity();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testApiEndpoints();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            
+            await testCorsHeaders();
+            
+            addResult('✅ 诊断完成', 'success', '所有测试已完成，请查看上述结果');
+            log('完整诊断完成');
+        }
+        
+        // 页面加载时显示当前配置
+        document.addEventListener('DOMContentLoaded', function() {
+            log('API 诊断工具已加载');
+            log(`目标 API: ${API_BASE_URL}`);
+            log(`当前页面: ${window.location.origin}`);
+        });
+    </script>
+</body>
+</html>

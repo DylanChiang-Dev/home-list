@@ -9,6 +9,8 @@ import CreateTask from '../pages/CreateTask';
 import FamilyManagement from '../pages/FamilyManagement';
 import Profile from '../pages/Profile';
 import DataMigration from '../components/DataMigration';
+import ApiTest from '../pages/ApiTest';
+import ErrorDiagnosis from '../pages/ErrorDiagnosis';
 
 // 受保护的路由组件
 const ProtectedRoute: React.FC<{ children: React.ReactNode }> = ({ children }) => {
@@ -113,6 +115,22 @@ export const router = createBrowserRouter([
     element: (
       <ProtectedRoute>
         <DataMigration />
+      </ProtectedRoute>
+    )
+  },
+  {
+    path: '/api-test',
+    element: (
+      <ProtectedRoute>
+        <ApiTest />
+      </ProtectedRoute>
+    )
+  },
+  {
+    path: '/error-diagnosis',
+    element: (
+      <ProtectedRoute>
+        <ErrorDiagnosis />
       </ProtectedRoute>
     )
   },

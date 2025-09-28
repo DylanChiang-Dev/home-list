@@ -2,7 +2,7 @@ import React, { useState, useEffect } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Users, UserPlus, Copy, Check, Trash2, Crown, User, Mail, Calendar, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
-import { apiGet, apiPost, apiDelete, API_ENDPOINTS } from '../utils/api';
+import { apiGet, apiPost, apiDelete, apiHealthCheck, apiBatch, API_ENDPOINTS } from '../utils/api';
 
 interface FamilyMember {
   id: string;
@@ -45,40 +45,63 @@ const FamilyManagement: React.FC = () => {
   // 加载家庭成员数据
   useEffect(() => {
     const loadData = async () => {
+      setLoading(true);
+      setError('');
+      
       try {
-        setLoading(true);
-        setError('');
+        console.log('🔄 开始加载家庭管理数据...');
         
-        // 加載家庭成員數據
-         const membersResponse = await apiGet<FamilyMember[]>(API_ENDPOINTS.FAMILY.MEMBERS);
-         if (membersResponse.success && membersResponse.data) {
-           setFamilyMembers(membersResponse.data);
-           setHasFamily(true);
+        // 先进行健康检查
+        const healthCheck = await apiHealthCheck();
+        if (!healthCheck.success) {
+          console.warn('⚠️ API健康检查失败，但继续尝试加载数据');
+        }
+        
+        // 使用批量API调用来并行获取数据
+        const [membersResponse, invitesResponse] = await apiBatch([
+          () => apiGet<FamilyMember[]>(API_ENDPOINTS.FAMILY.MEMBERS, { fast: true }),
+          () => apiGet<InviteCode[]>(API_ENDPOINTS.FAMILY.INVITES, { fast: true })
+        ]);
+        
+        // 处理家庭成员数据
+        if (membersResponse.success && membersResponse.data) {
+          console.log('✅ 家庭成员数据加载成功:', membersResponse.data);
+          setFamilyMembers(membersResponse.data);
+          setHasFamily(true);
         } else {
+          console.error('❌ 家庭成员数据加载失败:', membersResponse.error);
           // 如果是權限錯誤，可能用戶沒有家庭
           if (membersResponse.error?.includes('权限') || membersResponse.error?.includes('家庭')) {
             setHasFamily(false);
             setFamilyMembers([]);
           } else {
-            throw new Error(membersResponse.error || '加載家庭成員失敗');
+            setError(prev => prev ? `${prev}; 加载家庭成员失败: ${membersResponse.error}` : `加载家庭成员失败: ${membersResponse.error}`);
           }
         }
-        
-        // 只有當用戶有家庭時才加載邀請碼
+
+        // 处理邀请码数据
         if (hasFamily) {
-          const invitesResponse = await apiGet<InviteCode[]>(API_ENDPOINTS.FAMILY.INVITES);
           if (invitesResponse.success && invitesResponse.data) {
+            console.log('✅ 邀请码数据加载成功:', invitesResponse.data);
             setInviteCodes(invitesResponse.data);
           } else {
+            console.error('❌ 邀请码数据加载失败:', invitesResponse.error);
             // 邀請碼加載失敗不阻止頁面顯示，只記錄錯誤
             console.error('加載邀請碼失敗:', invitesResponse.error);
           }
         }
+        
+        // 如果两个请求都失败了，显示网络连接提示
+        if (!membersResponse.success && !invitesResponse.success) {
+          setError('网络连接异常，请检查网络设置或稍后重试。如果问题持续存在，请联系技术支持。');
+        }
+        
       } catch (err) {
-        console.error('加載數據失敗:', err);
-        setError(err.message || '加載數據失敗');
+        console.error('💥 加载数据时发生未预期错误:', err);
+        setError(`加载数据失败: ${err.message || '未知错误'}。请刷新页面重试。`);
       } finally {
         setLoading(false);
+        console.log('✅ 数据加载流程完成');
       }
     };
     
@@ -100,36 +123,44 @@ const FamilyManagement: React.FC = () => {
   const handleCreateInvite = async () => {
     try {
       setError('');
+      console.log('🔄 创建邀请码...');
+      
       const response = await apiPost<InviteCode>(API_ENDPOINTS.FAMILY.INVITES, {
          maxUses: newInviteMaxUses
-       });
+       }, { fast: true });
        
        if (response.success && response.data) {
+         console.log('✅ 邀请码创建成功:', response.data);
          setInviteCodes([response.data, ...inviteCodes]);
         setShowCreateInvite(false);
         setNewInviteMaxUses(5);
       } else {
+        console.error('❌ 邀请码创建失败:', response.error);
         throw new Error(response.error || '創建邀請碼失敗');
       }
     } catch (err) {
-      console.error('創建邀請碼失敗:', err);
-      setError(err.message || '創建邀請碼失敗');
+      console.error('💥 创建邀请码时发生错误:', err);
+      setError(err.message || '創建邀請碼失敗，請稍後重試');
     }
   };
 
   const handleDeleteInvite = async (id: string) => {
     try {
       setError('');
-      const response = await apiDelete(API_ENDPOINTS.FAMILY.DELETE_INVITE(id));
+      console.log('🔄 删除邀请码:', id);
+      
+      const response = await apiDelete(API_ENDPOINTS.FAMILY.DELETE_INVITE(id), { fast: true });
       
       if (response.success) {
+        console.log('✅ 邀请码删除成功');
         setInviteCodes(inviteCodes.filter(invite => invite.id !== id));
       } else {
+        console.error('❌ 邀请码删除失败:', response.error);
         throw new Error(response.error || '刪除邀請碼失敗');
       }
     } catch (err) {
-      console.error('刪除邀請碼失敗:', err);
-      setError(err.message || '刪除邀請碼失敗');
+      console.error('💥 删除邀请码时发生错误:', err);
+      setError(err.message || '刪除邀請碼失敗，請稍後重試');
     }
   };
 
@@ -143,25 +174,32 @@ const FamilyManagement: React.FC = () => {
     try {
       setCreatingFamily(true);
       setError('');
+      console.log('🔄 创建家庭:', familyName);
       
       const response = await apiPost(API_ENDPOINTS.FAMILY.CREATE, {
         name: familyName.trim(),
         description: familyDescription.trim()
-      });
+      }, { fast: true });
       
       if (response.success) {
+        console.log('✅ 家庭创建成功');
         setHasFamily(true);
         setShowCreateFamily(false);
         setFamilyName('');
         setFamilyDescription('');
-        // 重新加載數據
-        window.location.reload();
+        
+        // 重新加载数据而不是刷新整个页面
+        const membersResponse = await apiGet<FamilyMember[]>(API_ENDPOINTS.FAMILY.MEMBERS, { fast: true });
+        if (membersResponse.success && membersResponse.data) {
+          setFamilyMembers(membersResponse.data);
+        }
       } else {
+        console.error('❌ 家庭创建失败:', response.error);
         throw new Error(response.error || '創建家庭失敗');
       }
     } catch (err) {
-      console.error('創建家庭失敗:', err);
-      setError(err.message || '創建家庭失敗');
+      console.error('💥 创建家庭时发生错误:', err);
+      setError(err.message || '創建家庭失敗，請稍後重試');
     } finally {
       setCreatingFamily(false);
     }

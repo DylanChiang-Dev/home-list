@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui';
 import Calendar from '../components/Calendar';
 import TaskPanel from '../components/TaskPanel';
+import ApiEndpointSwitcher from '../components/ApiEndpointSwitcher';
 import { Task, TaskFilter, TaskTypeLabels } from '../types/task';
 import { apiGet, apiPut, API_ENDPOINTS } from '../utils/api';
 
@@ -143,6 +144,7 @@ const Dashboard: React.FC = () => {
               <span className="text-sm text-gray-500">欢迎回来，{user?.name}</span>
             </div>
             <nav className="flex items-center space-x-4">
+              <ApiEndpointSwitcher className="mr-2" />
               <Link to="/create-task">
                 <Button className="flex items-center space-x-2">
                   <Plus className="h-4 w-4" />
@@ -157,6 +159,9 @@ const Dashboard: React.FC = () => {
               </Link>
               <Link to="/profile" className="text-gray-600 hover:text-gray-900">
                 <Settings className="h-5 w-5" />
+              </Link>
+              <Link to="/error-diagnosis" className="text-gray-600 hover:text-gray-900" title="错误诊断">
+                <AlertCircle className="h-5 w-5" />
               </Link>
               <button
                 onClick={handleLogout}

@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>网络连接测试</title>
+    <style>
+        body {
+            font-family: Arial, sans-serif;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+            background-color: #f5f5f5;
+        }
+        .container {
+            background: white;
+            padding: 20px;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+            margin-bottom: 20px;
+        }
+        button {
+            background: #007bff;
+            color: white;
+            border: none;
+            padding: 10px 20px;
+            border-radius: 4px;
+            cursor: pointer;
+            margin: 5px;
+        }
+        button:hover { background: #0056b3; }
+        .log {
+            background: #f8f9fa;
+            border: 1px solid #dee2e6;
+            border-radius: 4px;
+            padding: 15px;
+            max-height: 400px;
+            overflow-y: auto;
+            font-family: monospace;
+            font-size: 12px;
+            white-space: pre-wrap;
+        }
+        .error { color: #dc3545; }
+        .success { color: #28a745; }
+        .warning { color: #ffc107; }
+        .status {
+            padding: 10px;
+            border-radius: 4px;
+            margin: 10px 0;
+        }
+        .status.success { background: #d4edda; border: 1px solid #c3e6cb; }
+        .status.error { background: #f8d7da; border: 1px solid #f5c6cb; }
+        .status.warning { background: #fff3cd; border: 1px solid #ffeaa7; }
+    </style>
+</head>
+<body>
+    <h1>网络连接测试</h1>
+    
+    <div class="container">
+        <h3>测试状态</h3>
+        <div id="status">准备测试...</div>
+        <button onclick="testAPI()">测试API连接</button>
+        <button onclick="clearResults()">清除结果</button>
+    </div>
+    
+    <div class="container">
+        <h3>测试结果</h3>
+        <div id="results" class="log">点击"测试API连接"开始...</div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://home-list-api.dylan-chiang.workers.dev';
+        let testRunning = false;
+        
+        function updateStatus(message, type = 'info') {
+            const statusDiv = document.getElementById('status');
+            statusDiv.innerHTML = `<div class="status ${type}">${message}</div>`;
+        }
+        
+        function log(message, type = 'info') {
+            const resultsDiv = document.getElementById('results');
+            const timestamp = new Date().toLocaleTimeString();
+            const className = type === 'error' ? 'error' : type === 'success' ? 'success' : type === 'warning' ? 'warning' : '';
+            resultsDiv.innerHTML += `<span class="${className}">[${timestamp}] ${message}</span>\n`;
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+            
+            // 同时输出到控制台
+            console.log(`[${timestamp}] ${message}`);
+        }
+        
+        function clearResults() {
+            document.getElementById('results').innerHTML = '';
+            updateStatus('结果已清除');
+        }
+        
+        async function testAPI() {
+            if (testRunning) {
+                log('测试正在进行中，请等待...', 'warning');
+                return;
+            }
+            
+            testRunning = true;
+            updateStatus('正在测试API连接...', 'warning');
+            clearResults();
+            
+            try {
+                log('=== 开始API连接测试 ===');
+                log(`目标API: ${API_BASE_URL}`);
+                log(`当前时间: ${new Date().toLocaleString()}`);
+                log(`浏览器: ${navigator.userAgent}`);
+                log(`在线状态: ${navigator.onLine ? '在线' : '离线'}`);
+                
+                // 测试1: 基础连接
+                log('\n--- 测试1: 基础连接 ---');
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+                    
+                    const response = await fetch(API_BASE_URL, {
+                        method: 'GET',
+                        mode: 'cors',
+                        cache: 'no-cache',
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    log(`✓ 基础连接成功: ${response.status}`, 'success');
+                } catch (error) {
+                    log(`✗ 基础连接失败: ${error.name} - ${error.message}`, 'error');
+                }
+                
+                // 测试2: API端点
+                log('\n--- 测试2: API端点 ---');
+                try {
+                    const controller = new AbortController();
+                    const timeoutId = setTimeout(() => controller.abort(), 10000);
+                    
+                    const response = await fetch(`${API_BASE_URL}/api/family/members`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': 'Bearer test-token'
+                        },
+                        mode: 'cors',
+                        cache: 'no-cache',
+                        signal: controller.signal
+                    });
+                    
+                    clearTimeout(timeoutId);
+                    
+                    if (response.status === 401) {
+                        log(`✓ API端点正常: ${response.status} (认证失败符合预期)`, 'success');
+                        const text = await response.text();
+                        log(`响应内容: ${text}`);
+                    } else {
+                        log(`⚠ API端点响应异常: ${response.status}`, 'warning');
+                    }
+                } catch (error) {
+                    log(`✗ API端点测试失败: ${error.name} - ${error.message}`, 'error');
+                    if (error.name === 'TypeError' && error.message.includes('fetch')) {
+                        log('这可能是网络连接问题或CORS问题', 'error');
+                    }
+                }
+                
+                log('\n=== 测试完成 ===');
+                updateStatus('测试完成，请查看结果', 'success');
+                
+            } catch (error) {
+                log(`测试过程中发生错误: ${error.message}`, 'error');
+                updateStatus('测试失败', 'error');
+            } finally {
+                testRunning = false;
+            }
+        }
+        
+        // 页面加载完成后显示准备状态
+        window.addEventListener('load', () => {
+            updateStatus('页面加载完成，可以开始测试');
+            log('页面已加载，点击按钮开始测试');
+        });
+        
+        // 监听网络状态
+        window.addEventListener('online', () => {
+            log('网络已连接', 'success');
+            updateStatus('网络已连接', 'success');
+        });
+        
+        window.addEventListener('offline', () => {
+            log('网络已断开', 'error');
+            updateStatus('网络已断开', 'error');
+        });
+    </script>
+</body>
+</html>

@@ -1,0 +1,116 @@
+{
+  "timestamp": "2025-09-28T06:47:23.923Z",
+  "summary": {
+    "dnsIssues": 1,
+    "tlsOk": false,
+    "apiIssues": 5,
+    "totalErrors": 7
+  },
+  "details": {
+    "dns": {
+      "home-list-api.zhangkaishen.workers.dev": {
+        "success": false,
+        "error": "queryA ENOTFOUND home-list-api.zhangkaishen.workers.dev"
+      },
+      "cloudflare.com": {
+        "success": true,
+        "addresses": [
+          "104.16.132.229",
+          "104.16.133.229"
+        ],
+        "time": "15.94ms"
+      },
+      "workers.dev": {
+        "success": true,
+        "addresses": [
+          "104.18.12.15",
+          "104.18.13.15"
+        ],
+        "time": "4020.74ms"
+      },
+      "google.com": {
+        "success": true,
+        "addresses": [
+          "142.250.196.206"
+        ],
+        "time": "17.27ms"
+      }
+    },
+    "connectivity": {
+      "tls": {
+        "success": false,
+        "error": "getaddrinfo ENOTFOUND home-list-api.zhangkaishen.workers.dev"
+      }
+    },
+    "api": {
+      "/": {
+        "success": false,
+        "error": "getaddrinfo ENOTFOUND home-list-api.zhangkaishen.workers.dev",
+        "time": "2.06ms"
+      },
+      "/health": {
+        "success": false,
+        "error": "getaddrinfo ENOTFOUND home-list-api.zhangkaishen.workers.dev",
+        "time": "1.05ms"
+      },
+      "/api/health": {
+        "success": false,
+        "error": "getaddrinfo ENOTFOUND home-list-api.zhangkaishen.workers.dev",
+        "time": "1.01ms"
+      },
+      "/api/family/members": {
+        "success": false,
+        "error": "getaddrinfo ENOTFOUND home-list-api.zhangkaishen.workers.dev",
+        "time": "0.99ms"
+      },
+      "/api/family/invites": {
+        "success": false,
+        "error": "getaddrinfo ENOTFOUND home-list-api.zhangkaishen.workers.dev",
+        "time": "0.87ms"
+      }
+    },
+    "performance": {
+      "concurrency_1": {
+        "total": 1,
+        "successful": 0,
+        "failed": 1,
+        "successRate": "0.0%",
+        "totalTime": "1.20ms",
+        "avgTime": "1.20ms"
+      },
+      "concurrency_3": {
+        "total": 3,
+        "successful": 0,
+        "failed": 3,
+        "successRate": "0.0%",
+        "totalTime": "3.05ms",
+        "avgTime": "1.02ms"
+      },
+      "concurrency_5": {
+        "total": 5,
+        "successful": 0,
+        "failed": 5,
+        "successRate": "0.0%",
+        "totalTime": "2.02ms",
+        "avgTime": "0.40ms"
+      },
+      "concurrency_10": {
+        "total": 10,
+        "successful": 0,
+        "failed": 10,
+        "successRate": "0.0%",
+        "totalTime": "5.14ms",
+        "avgTime": "0.51ms"
+      }
+    },
+    "errors": [
+      "DNS解析失败: home-list-api.zhangkaishen.workers.dev - queryA ENOTFOUND home-list-api.zhangkaishen.workers.dev",
+      "TLS连接失败: getaddrinfo ENOTFOUND home-list-api.zhangkaishen.workers.dev",
+      "Failed to fetch: / - getaddrinfo ENOTFOUND home-list-api.zhangkaishen.workers.dev",
+      "Failed to fetch: /health - getaddrinfo ENOTFOUND home-list-api.zhangkaishen.workers.dev",
+      "Failed to fetch: /api/health - getaddrinfo ENOTFOUND home-list-api.zhangkaishen.workers.dev",
+      "Failed to fetch: /api/family/members - getaddrinfo ENOTFOUND home-list-api.zhangkaishen.workers.dev",
+      "Failed to fetch: /api/family/invites - getaddrinfo ENOTFOUND home-list-api.zhangkaishen.workers.dev"
+    ]
+  }
+}
