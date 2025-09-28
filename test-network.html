@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>API連接測試</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f5f5f5; }
+        .container { max-width: 800px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; }
+        .result { margin: 10px 0; padding: 15px; border-radius: 5px; border-left: 4px solid #007bff; }
+        .success { border-left-color: #28a745; background-color: #d4edda; color: #155724; }
+        .error { border-left-color: #dc3545; background-color: #f8d7da; color: #721c24; }
+        .warning { border-left-color: #ffc107; background-color: #fff3cd; color: #856404; }
+        button { padding: 12px 24px; margin: 8px; cursor: pointer; background: #007bff; color: white; border: none; border-radius: 4px; }
+        button:hover { background: #0056b3; }
+        .status { font-weight: bold; margin-bottom: 10px; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔗 API連接診斷工具</h1>
+        <p>此工具用於測試生產環境API的連接狀態</p>
+        
+        <div class="status" id="status">準備就緒</div>
+        
+        <button onclick="runAllTests()">🚀 運行完整測試</button>
+        <button onclick="testBasicConnection()">🔍 基本連接測試</button>
+        <button onclick="testCORS()">🌐 CORS測試</button>
+        <button onclick="clearResults()">🗑️ 清除結果</button>
+        
+        <div id="results"></div>
+    </div>
+
+    <script>
+        const API_BASE_URL = 'https://home-list-api.dylan-chiang.workers.dev';
+        const resultsDiv = document.getElementById('results');
+        const statusDiv = document.getElementById('status');
+
+        function updateStatus(message) {
+            statusDiv.textContent = message;
+        }
+
+        function addResult(message, type = 'info') {
+            const div = document.createElement('div');
+            div.className = `result ${type}`;
+            const time = new Date().toLocaleTimeString();
+            div.innerHTML = `<strong>[${time}]</strong> ${message}`;
+            resultsDiv.appendChild(div);
+            resultsDiv.scrollTop = resultsDiv.scrollHeight;
+        }
+
+        function clearResults() {
+            resultsDiv.innerHTML = '';
+            updateStatus('結果已清除');
+        }
+
+        async function testBasicConnection() {
+            updateStatus('正在測試基本連接...');
+            addResult('🔄 開始基本API連接測試', 'info');
+            
+            try {
+                console.log('Testing API connection to:', API_BASE_URL);
+                
+                // 首先測試健康檢查端點
+                const healthResponse = await fetch(`${API_BASE_URL}/health`, {
+                    method: 'GET',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': window.location.origin
+                    }
+                });
+                
+                if (healthResponse.ok) {
+                    const healthData = await healthResponse.json();
+                    addResult('✅ API服務器運行正常', 'success');
+                    addResult(`📊 API版本: ${healthData.version}`, 'info');
+                    addResult(`🌍 環境: ${healthData.environment}`, 'info');
+                } else {
+                    addResult('❌ 健康檢查失敗', 'error');
+                    return;
+                }
+                
+                // 測試登錄端點
+                const loginResponse = await fetch(`${API_BASE_URL}/api/auth/login`, {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'Origin': window.location.origin
+                    },
+                    body: JSON.stringify({
+                        email: 'test@example.com',
+                        password: '123456'
+                    })
+                });
+                
+                if (loginResponse.ok) {
+                    const loginData = await loginResponse.json();
+                    addResult('✅ 登錄端點正常工作', 'success');
+                    
+                    // 使用獲得的token測試需要認證的端點
+                    const membersResponse = await fetch(`${API_BASE_URL}/api/family/members`, {
+                        method: 'GET',
+                        headers: {
+                            'Content-Type': 'application/json',
+                            'Authorization': `Bearer ${loginData.token}`,
+                            'Origin': window.location.origin
+                        }
+                    });
+                    
+                    console.log('Members response:', membersResponse.status);
+                    const membersData = await membersResponse.json();
+                    
+                    if (membersResponse.status === 404 && membersData.error === '家庭不存在') {
+                        addResult('✅ 認證端點正常工作（返回預期的家庭不存在錯誤）', 'success');
+                    } else if (membersResponse.ok) {
+                        addResult('✅ 家庭成員端點正常工作', 'success');
+                    } else {
+                        addResult(`⚠️ 家庭成員端點返回: ${membersResponse.status} - ${membersData.error}`, 'warning');
+                    }
+                } else {
+                    addResult('❌ 登錄端點失敗', 'error');
+                }
+                
+                updateStatus('基本連接測試完成');
+                
+            } catch (error) {
+                console.error('Connection test failed:', error);
+                
+                if (error.name === 'AbortError') {
+                    addResult('❌ 連接超時', 'error');
+                } else if (error.message.includes('Failed to fetch')) {
+                    addResult('❌ 網絡連接失敗 - 可能的原因:', 'error');
+                    addResult('• CORS策略阻止', 'error');
+                    addResult('• 網絡防火牆', 'error');
+                    addResult('• DNS解析問題', 'error');
+                    addResult('• API服務器離線', 'error');
+                } else {
+                    addResult(`❌ 未知錯誤: ${error.message}`, 'error');
+                }
+                
+                updateStatus('基本連接測試失敗');
+            }
+        }
+
+        async function testCORS() {
+            updateStatus('正在測試CORS配置...');
+            addResult('🌐 開始CORS配置測試', 'info');
+            
+            try {
+                const response = await fetch(`${API_BASE_URL}/api/family/members`, {
+                    method: 'OPTIONS',
+                    headers: {
+                        'Origin': window.location.origin,
+                        'Access-Control-Request-Method': 'GET',
+                        'Access-Control-Request-Headers': 'Content-Type,Authorization'
+                    }
+                });
+                
+                console.log('CORS preflight response:', response.status);
+                
+                if (response.ok) {
+                    addResult('✅ CORS預檢請求成功', 'success');
+                    
+                    const allowOrigin = response.headers.get('Access-Control-Allow-Origin');
+                    const allowMethods = response.headers.get('Access-Control-Allow-Methods');
+                    const allowHeaders = response.headers.get('Access-Control-Allow-Headers');
+                    
+                    addResult(`🎯 允許的源: ${allowOrigin || '未設置'}`, 'info');
+                    addResult(`🔧 允許的方法: ${allowMethods || '未設置'}`, 'info');
+                    addResult(`📋 允許的頭: ${allowHeaders || '未設置'}`, 'info');
+                } else {
+                    addResult(`❌ CORS預檢失敗: ${response.status}`, 'error');
+                }
+                
+                updateStatus('CORS測試完成');
+                
+            } catch (error) {
+                console.error('CORS test failed:', error);
+                addResult(`❌ CORS測試錯誤: ${error.message}`, 'error');
+                updateStatus('CORS測試失敗');
+            }
+        }
+
+        async function runAllTests() {
+            clearResults();
+            updateStatus('正在運行完整測試套件...');
+            addResult('🚀 開始完整API診斷', 'info');
+            
+            await testBasicConnection();
+            await new Promise(resolve => setTimeout(resolve, 1000));
+            await testCORS();
+            
+            addResult('✨ 所有測試完成', 'success');
+            updateStatus('測試套件完成');
+        }
+
+        // 頁面加載時的初始化
+        window.addEventListener('load', () => {
+            addResult('📱 測試頁面已加載', 'info');
+            addResult(`🌍 當前域名: ${window.location.origin}`, 'info');
+            addResult(`🎯 目標API: ${API_BASE_URL}`, 'info');
+            updateStatus('準備就緒 - 點擊按鈕開始測試');
+        });
+
+        // 錯誤處理
+        window.addEventListener('error', (event) => {
+            console.error('Page error:', event.error);
+            addResult(`❌ 頁面錯誤: ${event.error.message}`, 'error');
+        });
+    </script>
+</body>
+</html>
