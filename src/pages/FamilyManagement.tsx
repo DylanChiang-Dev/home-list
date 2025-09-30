@@ -1,27 +1,9 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { Link } from 'react-router-dom';
 import { ArrowLeft, Users, UserPlus, Copy, Check, Trash2, Crown, User, Mail, Calendar, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
 import { apiGet, apiPost, apiDelete, apiHealthCheck, apiBatch, API_ENDPOINTS } from '../utils/api';
-
-interface FamilyMember {
-  id: string;
-  name: string;
-  email: string;
-  role: 'admin' | 'member';
-  joinedAt: string;
-  tasksCount: number;
-  completedTasks: number;
-}
-
-interface InviteCode {
-  id: string;
-  code: string;
-  createdAt: string;
-  expiresAt: string;
-  usedCount: number;
-  maxUses: number;
-}
+import { convertFamilyMembersFromAPI, convertInviteCodesFromAPI, FamilyMember, InviteCode } from '../utils/dataConverter';
 
 const FamilyManagement: React.FC = () => {
   const [activeTab, setActiveTab] = useState<'members' | 'invites'>('members');
@@ -43,72 +25,75 @@ const FamilyManagement: React.FC = () => {
   const [familyMembers, setFamilyMembers] = useState<FamilyMember[]>([]);
   
   // 加载家庭成员数据
-  useEffect(() => {
-    const loadData = async () => {
-      setLoading(true);
-      setError('');
-      
-      try {
-        console.log('🔄 开始加载家庭管理数据...');
-        
-        // 先进行健康检查
-        const healthCheck = await apiHealthCheck();
-        if (!healthCheck.success) {
-          console.warn('⚠️ API健康检查失败，但继续尝试加载数据');
-        }
-        
-        // 使用批量API调用来并行获取数据
-        const [membersResponse, invitesResponse] = await Promise.all([
-          apiGet<FamilyMember[]>(API_ENDPOINTS.FAMILY.MEMBERS, { fast: true }),
-          apiGet<{ invites: InviteCode[] }>(API_ENDPOINTS.FAMILY.INVITES, { fast: true })
-        ]);
+  const loadData = useCallback(async () => {
+    setLoading(true);
+    setError('');
 
-        // 处理家庭成员数据
-        if (membersResponse.success && membersResponse.data) {
-          console.log('✅ 家庭成员数据加载成功:', membersResponse.data);
-          setFamilyMembers(membersResponse.data);
-          setHasFamily(true);
-        } else {
-          console.error('❌ 家庭成员数据加载失败:', membersResponse.error);
-          // 如果是權限錯誤，可能用戶沒有家庭
-          if (membersResponse.error?.includes('权限') || membersResponse.error?.includes('家庭')) {
-            setHasFamily(false);
-            setFamilyMembers([]);
-          } else {
-            setError(prev => prev ? `${prev}; 加载家庭成员失败: ${membersResponse.error}` : `加载家庭成员失败: ${membersResponse.error}`);
-          }
-        }
+    try {
+      console.log('🔄 开始加载家庭管理数据...');
 
-        // 处理邀请码数据
-        if (hasFamily) {
-          if (invitesResponse.success && invitesResponse.data) {
-            console.log('✅ 邀请码数据加载成功:', invitesResponse.data);
-            // 從 data.invites 中提取邀請碼數組
-            setInviteCodes(invitesResponse.data.invites || []);
-          } else {
-            console.error('❌ 邀请码数据加载失败:', invitesResponse.error);
-            // 邀請碼加載失敗不阻止頁面顯示，只記錄錯誤
-            console.error('加載邀請碼失敗:', invitesResponse.error);
-            setInviteCodes([]);
-          }
-        }
-        
-        // 如果两个请求都失败了，显示网络连接提示
-        if (!membersResponse.success && !invitesResponse.success) {
-          setError('网络连接异常，请检查网络设置或稍后重试。如果问题持续存在，请联系技术支持。');
-        }
-        
-      } catch (err) {
-        console.error('💥 加载数据时发生未预期错误:', err);
-        setError(`加载数据失败: ${err.message || '未知错误'}。请刷新页面重试。`);
-      } finally {
-        setLoading(false);
-        console.log('✅ 数据加载流程完成');
+      // 先进行健康检查
+      const healthCheck = await apiHealthCheck();
+      if (!healthCheck.success) {
+        console.warn('⚠️ API健康检查失败，但继续尝试加载数据');
       }
-    };
-    
+
+      // 使用批量API调用来并行获取数据
+      const [membersResponse, invitesResponse] = await Promise.all([
+        apiGet<any[]>(API_ENDPOINTS.FAMILY.MEMBERS, { fast: true }),
+        apiGet<{ invites: any[] }>(API_ENDPOINTS.FAMILY.INVITES, { fast: true })
+      ]);
+
+      // 处理家庭成员数据
+      if (membersResponse.success && membersResponse.data) {
+        console.log('✅ 家庭成员数据加载成功:', membersResponse.data);
+        const convertedMembers = convertFamilyMembersFromAPI(membersResponse.data);
+        setFamilyMembers(convertedMembers);
+        setHasFamily(true);
+      } else {
+        console.error('❌ 家庭成员数据加载失败:', membersResponse.error);
+        // 如果是權限錯誤，可能用戶沒有家庭
+        if (membersResponse.error?.includes('权限') || membersResponse.error?.includes('家庭')) {
+          setHasFamily(false);
+          setFamilyMembers([]);
+        } else {
+          setError(prev => prev ? `${prev}; 加载家庭成员失败: ${membersResponse.error}` : `加载家庭成员失败: ${membersResponse.error}`);
+        }
+      }
+
+      // 处理邀请码数据
+      if (membersResponse.success) {
+        if (invitesResponse.success && invitesResponse.data) {
+          console.log('✅ 邀请码数据加载成功:', invitesResponse.data);
+          // 從 data.invites 中提取邀請碼數組並轉換
+          const invitesArray = invitesResponse.data.invites || [];
+          const convertedInvites = convertInviteCodesFromAPI(invitesArray);
+          setInviteCodes(convertedInvites);
+        } else {
+          console.error('❌ 邀请码数据加载失败:', invitesResponse.error);
+          // 邀請碼加載失敗不阻止頁面顯示，只記錄錯誤
+          console.error('加載邀請碼失敗:', invitesResponse.error);
+          setInviteCodes([]);
+        }
+      }
+
+      // 如果两个请求都失败了，显示网络连接提示
+      if (!membersResponse.success && !invitesResponse.success) {
+        setError('网络连接异常，请检查网络设置或稍后重试。如果问题持续存在，请联系技术支持。');
+      }
+
+    } catch (err) {
+      console.error('💥 加载数据时发生未预期错误:', err);
+      setError(`加载数据失败: ${err.message || '未知错误'}。请刷新页面重试。`);
+    } finally {
+      setLoading(false);
+      console.log('✅ 数据加载流程完成');
+    }
+  }, [user]);
+
+  useEffect(() => {
     loadData();
-  }, [user, hasFamily]);
+  }, [loadData]);
   
   const [inviteCodes, setInviteCodes] = useState<InviteCode[]>([]);
 
@@ -189,11 +174,12 @@ const FamilyManagement: React.FC = () => {
         setShowCreateFamily(false);
         setFamilyName('');
         setFamilyDescription('');
-        
+
         // 重新加载数据而不是刷新整个页面
-        const membersResponse = await apiGet<FamilyMember[]>(API_ENDPOINTS.FAMILY.MEMBERS, { fast: true });
+        const membersResponse = await apiGet<any[]>(API_ENDPOINTS.FAMILY.MEMBERS, { fast: true });
         if (membersResponse.success && membersResponse.data) {
-          setFamilyMembers(membersResponse.data);
+          const convertedMembers = convertFamilyMembersFromAPI(membersResponse.data);
+          setFamilyMembers(convertedMembers);
         }
       } else {
         console.error('❌ 家庭创建失败:', response.error);

@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useMemo } from 'react';
 import { ChevronLeft, ChevronRight } from 'lucide-react';
 import { Task } from '../types/task';
+import { getTasksForDate, groupTasksByType } from '../utils/taskFilters';
 
 interface CalendarProps {
   tasks: Task[];
@@ -26,108 +27,6 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, selectedDate, onDateSelect }
     return new Date(date.getFullYear(), date.getMonth(), 1).getDay();
   };
 
-  const getTasksForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
-    if (tasks.length > 0 && dateStr === '2025-09-30') {
-      console.log(`[Calendar] === 調試 9/30 任務匹配 ===`);
-      console.log(`[Calendar] 查找日期: ${dateStr}`);
-      console.log(`[Calendar] 任務列表:`, tasks.map(t => ({
-        title: t.title,
-        type: t.type,
-        dueDate: t.dueDate,
-        dueDateType: typeof t.dueDate
-      })));
-    }
-    const filteredTasks = tasks.filter(task => {
-      // 检查结束日期
-      if (task.recurringRule?.endDate) {
-        const endDate = new Date(task.recurringRule.endDate);
-        if (date > endDate) return false;
-      }
-      
-      // 处理长期任务 - 每天都显示直到截止日期
-      if (task.type === 'long_term') {
-        const createdDate = new Date(task.createdAt);
-        if (date < createdDate) return false;
-        
-        if (task.dueDate) {
-          const dueDate = new Date(task.dueDate);
-          return date <= dueDate;
-        }
-        return true;
-      }
-      
-      // 处理重复任务
-      if (task.type === 'recurring') {
-        const createdDate = new Date(task.createdAt);
-        if (date < createdDate) return false;
-        
-        if (task.recurringRule) {
-          const { type, interval, daysOfWeek, daysOfMonth, monthsOfYear, datesOfYear } = task.recurringRule;
-          const daysDiff = Math.floor((date.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-          
-          if (type === 'daily') {
-            return daysDiff % (interval || 1) === 0;
-          } 
-          
-          else if (type === 'weekly') {
-            const weeksDiff = Math.floor(daysDiff / 7);
-            const isCorrectWeek = weeksDiff % (interval || 1) === 0;
-            const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay(); // 转换为1-7格式
-            const isCorrectDay = daysOfWeek && daysOfWeek.includes(dayOfWeek);
-            return isCorrectWeek && isCorrectDay;
-          } 
-          
-          else if (type === 'monthly') {
-            const currentMonth = date.getMonth();
-            const currentDay = date.getDate();
-            const createdMonth = createdDate.getMonth();
-            const monthsDiff = (date.getFullYear() - createdDate.getFullYear()) * 12 + (currentMonth - createdMonth);
-            const isCorrectMonth = monthsDiff % (interval || 1) === 0;
-            const isCorrectDay = daysOfMonth && daysOfMonth.includes(currentDay);
-            return isCorrectMonth && isCorrectDay;
-          } 
-          
-          else if (type === 'yearly') {
-            const currentYear = date.getFullYear();
-            const currentMonth = date.getMonth() + 1; // 转换为1-12格式
-            const currentDay = date.getDate();
-            const createdYear = createdDate.getFullYear();
-            const yearsDiff = currentYear - createdYear;
-            const isCorrectYear = yearsDiff % (interval || 1) === 0;
-            
-            // 检查月份批量设置
-            if (monthsOfYear && monthsOfYear.includes(currentMonth)) {
-              return isCorrectYear;
-            }
-            
-            // 检查具体日期设置
-            if (datesOfYear && datesOfYear.some(d => d.month === currentMonth && d.day === currentDay)) {
-              return isCorrectYear;
-            }
-            
-            return false;
-          }
-        }
-        return false;
-      }
-      
-      // 处理常规任务 - 只在截止日期显示
-      if (task.type === 'regular' && task.dueDate) {
-        const taskDate = new Date(task.dueDate).toISOString().split('T')[0];
-        const matches = taskDate === dateStr;
-        if (matches) {
-          console.log(`[Calendar] ✓ 找到任務: ${task.title}, dueDate: ${task.dueDate}, taskDate: ${taskDate}`);
-        }
-        return matches;
-      }
-
-      return false;
-    });
-    console.log(`[Calendar] 日期 ${dateStr} 共有 ${filteredTasks.length} 個任務`);
-    return filteredTasks;
-  };
-
   const navigateMonth = (direction: 'prev' | 'next') => {
     const newMonth = new Date(currentMonth);
     if (direction === 'prev') {
@@ -137,6 +36,21 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, selectedDate, onDateSelect }
     }
     setCurrentMonth(newMonth);
   };
+
+  // Memoize tasks by date for performance optimization
+  const tasksByDate = useMemo(() => {
+    const daysInMonth = getDaysInMonth(currentMonth);
+    const dateMap = new Map<string, Task[]>();
+
+    for (let day = 1; day <= daysInMonth; day++) {
+      const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
+      const dateKey = date.toDateString();
+      const tasksForDay = getTasksForDate(tasks, date);
+      dateMap.set(dateKey, tasksForDay);
+    }
+
+    return dateMap;
+  }, [tasks, currentMonth]);
 
   const renderCalendarDays = () => {
     const daysInMonth = getDaysInMonth(currentMonth);
@@ -153,22 +67,20 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, selectedDate, onDateSelect }
     // 添加月份中的天数
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
-      const allDayTasks = getTasksForDate(date);
-      const isSelected = selectedDate.toDateString() === date.toDateString();
-      const isToday = new Date().toDateString() === date.toDateString();
+      const dateKey = date.toDateString();
+      const allDayTasks = tasksByDate.get(dateKey) || [];
+      const isSelected = selectedDate.toDateString() === dateKey;
+      const isToday = new Date().toDateString() === dateKey;
 
-      // 按优先级排序任务：regular > long_term > recurring
-      const sortedTasks = allDayTasks.sort((a, b) => {
-        const priority = { regular: 3, long_term: 2, recurring: 1 };
-        return priority[b.type] - priority[a.type];
-      });
+      // 按类型分组任务
+      const { regular: regularTasks, longTerm: longTermTasks, recurring: recurringTasks } = groupTasksByType(allDayTasks);
 
       // 按优先级和数量限制选择要显示的任务
-      const regularTasks = sortedTasks.filter(task => task.type === 'regular').slice(0, 2);
-      const longTermTasks = sortedTasks.filter(task => task.type === 'long_term').slice(0, 1);
-      const recurringTasks = sortedTasks.filter(task => task.type === 'recurring').slice(0, 1);
-      
-      const displayTasks = [...regularTasks, ...longTermTasks, ...recurringTasks];
+      const displayTasks = [
+        ...regularTasks.slice(0, 2),
+        ...longTermTasks.slice(0, 1),
+        ...recurringTasks.slice(0, 1)
+      ];
       const totalTasks = allDayTasks.length;
       const remainingTasks = totalTasks - displayTasks.length;
 

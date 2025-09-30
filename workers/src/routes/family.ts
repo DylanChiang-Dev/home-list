@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { authMiddleware, adminMiddleware, getCurrentUser, checkFamilyAccess } from '../middleware/auth';
+import { convertFamilyMembersToCamelCase, convertInviteCodesToCamelCase } from '../utils/dataConverter';
 import type { Bindings } from '../index';
 
 const family = new Hono<{ Bindings: Bindings }>();
@@ -83,7 +84,9 @@ family.get('/members', async (c) => {
         u.created_at ASC
     `).bind(user.familyId).all();
 
-    return c.json(members.results || []);
+    // 轉換為 camelCase 格式
+    const convertedMembers = convertFamilyMembersToCamelCase(members.results || []);
+    return c.json(convertedMembers);
 
   } catch (error) {
     if (error instanceof HTTPException) {
@@ -119,7 +122,9 @@ family.get('/invites', async (c) => {
       ORDER BY ic.created_at DESC
     `).bind(user.familyId).all();
 
-    return c.json({ invites: invites.results || [] });
+    // 轉換為 camelCase 格式
+    const convertedInvites = convertInviteCodesToCamelCase(invites.results || []);
+    return c.json({ invites: convertedInvites });
 
   } catch (error) {
     if (error instanceof HTTPException) {
@@ -602,7 +607,9 @@ family.get('/:id/invites', async (c) => {
       ORDER BY ic.created_at DESC
     `).bind(familyId).all();
 
-    return c.json({ invites: invites.results || [] });
+    // 轉換為 camelCase 格式
+    const convertedInvites = convertInviteCodesToCamelCase(invites.results || []);
+    return c.json({ invites: convertedInvites });
 
   } catch (error) {
     if (error instanceof HTTPException) {

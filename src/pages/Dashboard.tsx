@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useEffect } from 'react';
+import React, { useState, useMemo, useEffect, useCallback } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Plus, Users, Settings, LogOut, Filter, Database, AlertCircle } from 'lucide-react';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,6 +8,8 @@ import TaskPanel from '../components/TaskPanel';
 // import ApiEndpointSwitcher from '../components/ApiEndpointSwitcher'; // 已移除：不需要在生產環境顯示
 import { Task, TaskFilter, TaskTypeLabels } from '../types/task';
 import { apiGet, apiPut, API_ENDPOINTS } from '../utils/api';
+import { convertTasksFromAPI, convertTaskFromAPI } from '../utils/dataConverter';
+import { getTasksForDate, sortTasksByPriority } from '../utils/taskFilters';
 
 const Dashboard: React.FC = () => {
   const [selectedDate, setSelectedDate] = useState(new Date());
@@ -37,24 +39,8 @@ const Dashboard: React.FC = () => {
         setError(null);
         const response = await apiGet<{tasks: any[], total: number, page: number, limit: number}>(API_ENDPOINTS.TASKS.LIST);
         if (response.success) {
-          // 轉換後端 snake_case 為前端 camelCase
-          const convertedTasks = (response.data?.tasks || []).map((task: any) => ({
-            id: task.id,
-            title: task.title,
-            description: task.description,
-            status: task.status,
-            priority: task.priority,
-            type: task.type,
-            assigneeId: task.assignee_id,
-            creatorName: task.creator_name,
-            assigneeName: task.assignee_name,
-            completerName: task.completer_name,
-            createdAt: task.created_at,
-            updatedAt: task.updated_at,
-            completedAt: task.completed_at,
-            dueDate: task.due_date,
-            recurringRule: task.recurring_rule ? JSON.parse(task.recurring_rule) : undefined
-          }));
+          // 使用統一的數據轉換函數
+          const convertedTasks = convertTasksFromAPI(response.data?.tasks || []);
           console.log('[Dashboard] 已加載任務:', convertedTasks.map(t => ({title: t.title, type: t.type, dueDate: t.dueDate})));
           setTasks(convertedTasks);
         } else {
@@ -73,105 +59,26 @@ const Dashboard: React.FC = () => {
     }
   }, [user]);
 
-  // 获取选中日期的任务（與 Calendar.tsx 使用相同邏輯）
-  const getTasksForDate = (date: Date) => {
-    const dateStr = date.toISOString().split('T')[0];
+  // 使用 useMemo 優化篩選任務的計算
+  const filteredTasks = useMemo(() => {
+    // 使用統一的任務過濾函數獲取指定日期的任務
+    const tasksForDate = getTasksForDate(tasks, selectedDate);
 
-    return tasks.filter(task => {
-      // 检查结束日期
-      if (task.recurringRule?.endDate) {
-        const endDate = new Date(task.recurringRule.endDate);
-        if (date > endDate) return false;
-      }
-
-      // 处理长期任务 - 每天都显示直到截止日期
-      if (task.type === 'long_term') {
-        const createdDate = new Date(task.createdAt);
-        if (date < createdDate) return false;
-
-        if (task.dueDate) {
-          const dueDate = new Date(task.dueDate);
-          return date <= dueDate;
-        }
-        return true;
-      }
-
-      // 处理重复任务
-      if (task.type === 'recurring') {
-        const createdDate = new Date(task.createdAt);
-        if (date < createdDate) return false;
-
-        if (task.recurringRule) {
-          const { type, interval, daysOfWeek, daysOfMonth, monthsOfYear, datesOfYear } = task.recurringRule;
-          const daysDiff = Math.floor((date.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
-
-          if (type === 'daily') {
-            return daysDiff % (interval || 1) === 0;
-          }
-
-          else if (type === 'weekly') {
-            const weeksDiff = Math.floor(daysDiff / 7);
-            const isCorrectWeek = weeksDiff % (interval || 1) === 0;
-            const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay(); // 转换为1-7格式
-            const isCorrectDay = daysOfWeek && daysOfWeek.includes(dayOfWeek);
-            return isCorrectWeek && isCorrectDay;
-          }
-
-          else if (type === 'monthly') {
-            const currentMonth = date.getMonth();
-            const currentDay = date.getDate();
-            const createdMonth = createdDate.getMonth();
-            const monthsDiff = (date.getFullYear() - createdDate.getFullYear()) * 12 + (currentMonth - createdMonth);
-            const isCorrectMonth = monthsDiff % (interval || 1) === 0;
-            const isCorrectDay = daysOfMonth && daysOfMonth.includes(currentDay);
-            return isCorrectMonth && isCorrectDay;
-          }
-
-          else if (type === 'yearly') {
-            const currentYear = date.getFullYear();
-            const currentMonth = date.getMonth() + 1; // 转换为1-12格式
-            const currentDay = date.getDate();
-            const createdYear = createdDate.getFullYear();
-            const yearsDiff = currentYear - createdYear;
-            const isCorrectYear = yearsDiff % (interval || 1) === 0;
-
-            // 检查月份批量设置
-            if (monthsOfYear && monthsOfYear.includes(currentMonth)) {
-              return isCorrectYear;
-            }
-
-            // 检查具体日期设置
-            if (datesOfYear && datesOfYear.some(d => d.month === currentMonth && d.day === currentDay)) {
-              return isCorrectYear;
-            }
-
-            return false;
-          }
-        }
-        return false;
-      }
-
-      // 处理常规任务 - 只在截止日期显示
-      if (task.type === 'regular' && task.dueDate) {
-        const taskDate = new Date(task.dueDate).toISOString().split('T')[0];
-        return taskDate === dateStr;
-      }
-
-      return false;
+    // 應用額外的過濾條件
+    const filtered = tasksForDate.filter(task => {
+      if (filter.status !== 'all' && task.status !== filter.status) return false;
+      if (filter.priority !== 'all' && task.priority !== filter.priority) return false;
+      if (filter.type !== 'all' && task.type !== filter.type) return false;
+      if (filter.assignee !== 'all' && task.assigneeName !== filter.assignee) return false;
+      return true;
     });
-  };
 
-  // 筛选任务
-  const filteredTasks = getTasksForDate(selectedDate).filter(task => {
-    if (filter.status !== 'all' && task.status !== filter.status) return false;
-    if (filter.priority !== 'all' && task.priority !== filter.priority) return false;
-    if (filter.type !== 'all' && task.type !== filter.type) return false;
-    if (filter.assignee !== 'all' && task.assigneeName !== filter.assignee) return false;
-    return true;
-  });
+    // 按優先級排序
+    return sortTasksByPriority(filtered);
+  }, [tasks, selectedDate, filter]);
 
-  // 更新任务状态
-  const updateTaskStatus = async (taskId: string, newStatus: Task['status']) => {
+  // 使用 useCallback 優化更新任務狀態函數
+  const updateTaskStatus = useCallback(async (taskId: string, newStatus: Task['status']) => {
     try {
       const updateData = {
         status: newStatus
@@ -180,24 +87,8 @@ const Dashboard: React.FC = () => {
       const response = await apiPut<any>(API_ENDPOINTS.TASKS.UPDATE(taskId), updateData);
 
       if (response.success && response.data) {
-        // 後端返回的是 snake_case，需要轉換為 camelCase
-        const updatedTask: Task = {
-          id: response.data.id,
-          title: response.data.title,
-          description: response.data.description,
-          status: response.data.status,
-          priority: response.data.priority,
-          type: response.data.type,
-          assigneeId: response.data.assigneeId,
-          creatorName: response.data.creatorName,
-          assigneeName: response.data.assigneeName,
-          completerName: response.data.completerName,
-          createdAt: response.data.createdAt,
-          updatedAt: response.data.updatedAt,
-          completedAt: response.data.completedAt,
-          dueDate: response.data.dueDate,
-          recurringRule: response.data.recurringRule
-        };
+        // 使用統一的數據轉換函數
+        const updatedTask = convertTaskFromAPI(response.data);
 
         setTasks(prevTasks =>
           prevTasks.map(task =>
@@ -213,7 +104,7 @@ const Dashboard: React.FC = () => {
       console.error('Error updating task status:', error);
       setError('更新任務狀態時發生錯誤');
     }
-  };
+  }, []);
 
   return (
     <div className="min-h-screen bg-gray-50">

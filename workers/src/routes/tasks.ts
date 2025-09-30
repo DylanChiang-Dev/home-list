@@ -1,6 +1,7 @@
 import { Hono } from 'hono';
 import { HTTPException } from 'hono/http-exception';
 import { authMiddleware, familyMemberMiddleware, getCurrentUser, checkFamilyAccess } from '../middleware/auth';
+import { convertTasksToCamelCase } from '../utils/dataConverter';
 import type { Bindings } from '../index';
 
 const tasks = new Hono<{ Bindings: Bindings }>();
@@ -72,9 +73,12 @@ tasks.get('/', async (c) => {
     const tasksResult = await c.env.DB.prepare(tasksQuery)
       .bind(...params, limitNum, offset)
       .all();
-    
+
+    // 轉換為 camelCase 格式
+    const tasks = convertTasksToCamelCase(tasksResult.results || []);
+
     return c.json({
-      tasks: tasksResult.results || [],
+      tasks,
       total,
       page: pageNum,
       limit: limitNum,
