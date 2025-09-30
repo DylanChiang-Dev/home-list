@@ -313,7 +313,7 @@ tasks.put('/:id', async (c) => {
     }
 
     // 转换为 camelCase 格式
-    const task = {
+    const taskResponse = {
       id: updatedTask.id,
       title: updatedTask.title,
       description: updatedTask.description,
@@ -331,7 +331,7 @@ tasks.put('/:id', async (c) => {
       recurringRule: updatedTask.recurring_rule ? JSON.parse(updatedTask.recurring_rule) : undefined
     };
 
-    return c.json(task);
+    return c.json(taskResponse);
 
   } catch (error) {
     if (error instanceof HTTPException) {
