@@ -73,44 +73,90 @@ const Dashboard: React.FC = () => {
     }
   }, [user]);
 
-  // 获取选中日期的任务
+  // 获取选中日期的任务（與 Calendar.tsx 使用相同邏輯）
   const getTasksForDate = (date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
+
     return tasks.filter(task => {
-      // 检查常规任务的截止日期
+      // 检查结束日期
+      if (task.recurringRule?.endDate) {
+        const endDate = new Date(task.recurringRule.endDate);
+        if (date > endDate) return false;
+      }
+
+      // 处理长期任务 - 每天都显示直到截止日期
+      if (task.type === 'long_term') {
+        const createdDate = new Date(task.createdAt);
+        if (date < createdDate) return false;
+
+        if (task.dueDate) {
+          const dueDate = new Date(task.dueDate);
+          return date <= dueDate;
+        }
+        return true;
+      }
+
+      // 处理重复任务
+      if (task.type === 'recurring') {
+        const createdDate = new Date(task.createdAt);
+        if (date < createdDate) return false;
+
+        if (task.recurringRule) {
+          const { type, interval, daysOfWeek, daysOfMonth, monthsOfYear, datesOfYear } = task.recurringRule;
+          const daysDiff = Math.floor((date.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+
+          if (type === 'daily') {
+            return daysDiff % (interval || 1) === 0;
+          }
+
+          else if (type === 'weekly') {
+            const weeksDiff = Math.floor(daysDiff / 7);
+            const isCorrectWeek = weeksDiff % (interval || 1) === 0;
+            const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay(); // 转换为1-7格式
+            const isCorrectDay = daysOfWeek && daysOfWeek.includes(dayOfWeek);
+            return isCorrectWeek && isCorrectDay;
+          }
+
+          else if (type === 'monthly') {
+            const currentMonth = date.getMonth();
+            const currentDay = date.getDate();
+            const createdMonth = createdDate.getMonth();
+            const monthsDiff = (date.getFullYear() - createdDate.getFullYear()) * 12 + (currentMonth - createdMonth);
+            const isCorrectMonth = monthsDiff % (interval || 1) === 0;
+            const isCorrectDay = daysOfMonth && daysOfMonth.includes(currentDay);
+            return isCorrectMonth && isCorrectDay;
+          }
+
+          else if (type === 'yearly') {
+            const currentYear = date.getFullYear();
+            const currentMonth = date.getMonth() + 1; // 转换为1-12格式
+            const currentDay = date.getDate();
+            const createdYear = createdDate.getFullYear();
+            const yearsDiff = currentYear - createdYear;
+            const isCorrectYear = yearsDiff % (interval || 1) === 0;
+
+            // 检查月份批量设置
+            if (monthsOfYear && monthsOfYear.includes(currentMonth)) {
+              return isCorrectYear;
+            }
+
+            // 检查具体日期设置
+            if (datesOfYear && datesOfYear.some(d => d.month === currentMonth && d.day === currentDay)) {
+              return isCorrectYear;
+            }
+
+            return false;
+          }
+        }
+        return false;
+      }
+
+      // 处理常规任务 - 只在截止日期显示
       if (task.type === 'regular' && task.dueDate) {
         const taskDate = new Date(task.dueDate).toISOString().split('T')[0];
         return taskDate === dateStr;
       }
-      
-      // 检查长期任务 - 每天都显示直到截止日期
-      if (task.type === 'long_term' && task.dueDate) {
-        const createdDate = new Date(task.createdAt);
-        const targetDate = new Date(date);
-        const dueDate = new Date(task.dueDate);
-        return targetDate >= createdDate && targetDate <= dueDate;
-      }
-      
-      // 检查重复任务 - 基于重复规则显示
-      if (task.type === 'recurring' && task.recurringRule) {
-        const createdDate = new Date(task.createdAt);
-        const targetDate = new Date(date);
-        
-        if (task.recurringRule.type === 'daily') {
-          return targetDate >= createdDate;
-        }
-        
-        if (task.recurringRule.type === 'weekly' && task.recurringRule.daysOfWeek) {
-          const dayOfWeek = targetDate.getDay();
-          return task.recurringRule.daysOfWeek.includes(dayOfWeek) && targetDate >= createdDate;
-        }
-        
-        if (task.recurringRule.type === 'monthly' && task.recurringRule.daysOfMonth) {
-          const dayOfMonth = targetDate.getDate();
-          return task.recurringRule.daysOfMonth.includes(dayOfMonth) && targetDate >= createdDate;
-        }
-      }
-      
+
       return false;
     });
   };
