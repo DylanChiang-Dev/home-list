@@ -5,7 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import { Button } from '../components/ui';
 import Calendar from '../components/Calendar';
 import TaskPanel from '../components/TaskPanel';
-import ApiEndpointSwitcher from '../components/ApiEndpointSwitcher';
+// import ApiEndpointSwitcher from '../components/ApiEndpointSwitcher'; // 已移除：不需要在生產環境顯示
 import { Task, TaskFilter, TaskTypeLabels } from '../types/task';
 import { apiGet, apiPut, API_ENDPOINTS } from '../utils/api';
 
@@ -35,9 +35,28 @@ const Dashboard: React.FC = () => {
       try {
         setLoading(true);
         setError(null);
-        const response = await apiGet<{tasks: Task[], total: number, page: number, limit: number}>(API_ENDPOINTS.TASKS.LIST);
+        const response = await apiGet<{tasks: any[], total: number, page: number, limit: number}>(API_ENDPOINTS.TASKS.LIST);
         if (response.success) {
-          setTasks(response.data?.tasks || []);
+          // 轉換後端 snake_case 為前端 camelCase
+          const convertedTasks = (response.data?.tasks || []).map((task: any) => ({
+            id: task.id,
+            title: task.title,
+            description: task.description,
+            status: task.status,
+            priority: task.priority,
+            type: task.type,
+            assigneeId: task.assignee_id,
+            creatorName: task.creator_name,
+            assigneeName: task.assignee_name,
+            completerName: task.completer_name,
+            createdAt: task.created_at,
+            updatedAt: task.updated_at,
+            completedAt: task.completed_at,
+            dueDate: task.due_date,
+            recurringRule: task.recurring_rule ? JSON.parse(task.recurring_rule) : undefined
+          }));
+          console.log('[Dashboard] 已加載任務:', convertedTasks.map(t => ({title: t.title, type: t.type, dueDate: t.dueDate})));
+          setTasks(convertedTasks);
         } else {
           setError('加載任務失敗');
         }
@@ -109,18 +128,35 @@ const Dashboard: React.FC = () => {
   const updateTaskStatus = async (taskId: string, newStatus: Task['status']) => {
     try {
       const updateData = {
-        status: newStatus,
-        completedAt: newStatus === 'completed' ? new Date().toISOString() : undefined,
-        completerName: newStatus === 'completed' ? user?.name : undefined
+        status: newStatus
       };
-      
-      const response = await apiPut<Task>(API_ENDPOINTS.TASKS.UPDATE(taskId), updateData);
-      
+
+      const response = await apiPut<any>(API_ENDPOINTS.TASKS.UPDATE(taskId), updateData);
+
       if (response.success && response.data) {
-        setTasks(prevTasks => 
-          prevTasks.map(task => 
-            task.id === taskId 
-              ? response.data!
+        // 後端返回的是 snake_case，需要轉換為 camelCase
+        const updatedTask: Task = {
+          id: response.data.id,
+          title: response.data.title,
+          description: response.data.description,
+          status: response.data.status,
+          priority: response.data.priority,
+          type: response.data.type,
+          assigneeId: response.data.assigneeId,
+          creatorName: response.data.creatorName,
+          assigneeName: response.data.assigneeName,
+          completerName: response.data.completerName,
+          createdAt: response.data.createdAt,
+          updatedAt: response.data.updatedAt,
+          completedAt: response.data.completedAt,
+          dueDate: response.data.dueDate,
+          recurringRule: response.data.recurringRule
+        };
+
+        setTasks(prevTasks =>
+          prevTasks.map(task =>
+            task.id === taskId
+              ? updatedTask
               : task
           )
         );
@@ -144,7 +180,7 @@ const Dashboard: React.FC = () => {
               <span className="text-sm text-gray-500">欢迎回来，{user?.name}</span>
             </div>
             <nav className="flex items-center space-x-4">
-              <ApiEndpointSwitcher className="mr-2" />
+              {/* <ApiEndpointSwitcher className="mr-2" /> */}
               <Link to="/create-task">
                 <Button className="flex items-center space-x-2">
                   <Plus className="h-4 w-4" />

@@ -49,7 +49,7 @@ tasks.get('/', async (c) => {
     
     // 查询任务列表
     const tasksQuery = `
-      SELECT 
+      SELECT
         t.*,
         creator.name as creator_name,
         assignee.name as assignee_name,
@@ -58,17 +58,17 @@ tasks.get('/', async (c) => {
       LEFT JOIN users creator ON t.creator_id = creator.id
       LEFT JOIN users assignee ON t.assignee_id = assignee.id
       LEFT JOIN users completer ON t.completer_id = completer.id
-      WHERE ${conditions.join(' AND ')}
-      ORDER BY 
-        CASE t.priority 
-          WHEN 'high' THEN 1 
-          WHEN 'medium' THEN 2 
-          WHEN 'low' THEN 3 
+      WHERE t.${conditions.join(' AND t.')}
+      ORDER BY
+        CASE t.priority
+          WHEN 'high' THEN 1
+          WHEN 'medium' THEN 2
+          WHEN 'low' THEN 3
         END,
         t.created_at DESC
       LIMIT ? OFFSET ?
     `;
-    
+
     const tasksResult = await c.env.DB.prepare(tasksQuery)
       .bind(...params, limitNum, offset)
       .all();
@@ -162,14 +162,18 @@ tasks.post('/', familyMemberMiddleware(), async (c) => {
     
     // 创建任务
     const taskId = crypto.randomUUID();
+
+    // 处理可选字段
+    const recurringRuleJson = recurringRule ? JSON.stringify(recurringRule) : null;
+
     await c.env.DB.prepare(`
       INSERT INTO tasks (
-        id, title, description, priority, type, creator_id, assignee_id, 
+        id, title, description, priority, type, creator_id, assignee_id,
         family_id, due_date, recurring_rule
       ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `).bind(
-      taskId, title, description, priority, type, user.userId, 
-      assigneeId, user.familyId, dueDate, recurringRule
+      taskId, title, description || null, priority, type, user.userId,
+      assigneeId, user.familyId, dueDate || null, recurringRuleJson
     ).run();
     
     // 获取创建的任务详情
@@ -276,7 +280,7 @@ tasks.put('/:id', async (c) => {
     
     if (recurringRule !== undefined) {
       updates.push('recurring_rule = ?');
-      values.push(recurringRule);
+      values.push(recurringRule ? JSON.stringify(recurringRule) : null);
     }
     
     if (updates.length === 0) {
@@ -289,9 +293,46 @@ tasks.put('/:id', async (c) => {
     await c.env.DB.prepare(
       `UPDATE tasks SET ${updates.join(', ')} WHERE id = ?`
     ).bind(...values).run();
-    
-    return c.json({ message: '任务更新成功' });
-    
+
+    // 获取更新后的完整任务信息（返回 camelCase 格式）
+    const updatedTask = await c.env.DB.prepare(`
+      SELECT
+        t.*,
+        creator.name as creator_name,
+        assignee.name as assignee_name,
+        completer.name as completer_name
+      FROM tasks t
+      LEFT JOIN users creator ON t.creator_id = creator.id
+      LEFT JOIN users assignee ON t.assignee_id = assignee.id
+      LEFT JOIN users completer ON t.completer_id = completer.id
+      WHERE t.id = ?
+    `).bind(taskId).first() as any;
+
+    if (!updatedTask) {
+      throw new HTTPException(404, { message: '任务不存在' });
+    }
+
+    // 转换为 camelCase 格式
+    const task = {
+      id: updatedTask.id,
+      title: updatedTask.title,
+      description: updatedTask.description,
+      status: updatedTask.status,
+      priority: updatedTask.priority,
+      type: updatedTask.type,
+      assigneeId: updatedTask.assignee_id,
+      creatorName: updatedTask.creator_name,
+      assigneeName: updatedTask.assignee_name,
+      completerName: updatedTask.completer_name,
+      createdAt: updatedTask.created_at,
+      updatedAt: updatedTask.updated_at,
+      completedAt: updatedTask.completed_at,
+      dueDate: updatedTask.due_date,
+      recurringRule: updatedTask.recurring_rule ? JSON.parse(updatedTask.recurring_rule) : undefined
+    };
+
+    return c.json(task);
+
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;

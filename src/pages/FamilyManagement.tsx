@@ -58,11 +58,11 @@ const FamilyManagement: React.FC = () => {
         }
         
         // 使用批量API调用来并行获取数据
-        const [membersResponse, invitesResponse] = await apiBatch([
-          () => apiGet<FamilyMember[]>(API_ENDPOINTS.FAMILY.MEMBERS, { fast: true }),
-          () => apiGet<InviteCode[]>(API_ENDPOINTS.FAMILY.INVITES, { fast: true })
+        const [membersResponse, invitesResponse] = await Promise.all([
+          apiGet<FamilyMember[]>(API_ENDPOINTS.FAMILY.MEMBERS, { fast: true }),
+          apiGet<{ invites: InviteCode[] }>(API_ENDPOINTS.FAMILY.INVITES, { fast: true })
         ]);
-        
+
         // 处理家庭成员数据
         if (membersResponse.success && membersResponse.data) {
           console.log('✅ 家庭成员数据加载成功:', membersResponse.data);
@@ -83,11 +83,13 @@ const FamilyManagement: React.FC = () => {
         if (hasFamily) {
           if (invitesResponse.success && invitesResponse.data) {
             console.log('✅ 邀请码数据加载成功:', invitesResponse.data);
-            setInviteCodes(invitesResponse.data);
+            // 從 data.invites 中提取邀請碼數組
+            setInviteCodes(invitesResponse.data.invites || []);
           } else {
             console.error('❌ 邀请码数据加载失败:', invitesResponse.error);
             // 邀請碼加載失敗不阻止頁面顯示，只記錄錯誤
             console.error('加載邀請碼失敗:', invitesResponse.error);
+            setInviteCodes([]);
           }
         }
         

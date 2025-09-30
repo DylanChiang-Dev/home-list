@@ -55,17 +55,92 @@ family.post('/', async (c) => {
   }
 });
 
+// 获取家庭成员列表（包含任务统计）
+family.get('/members', async (c) => {
+  try {
+    const user = getCurrentUser(c);
+
+    if (!user.familyId) {
+      throw new HTTPException(400, { message: '您还没有加入任何家庭' });
+    }
+
+    // 获取家庭成员及其任务统计
+    const members = await c.env.DB.prepare(`
+      SELECT
+        u.id,
+        u.name,
+        u.email,
+        u.role,
+        u.created_at as joinedAt,
+        COUNT(t.id) as tasksCount,
+        COUNT(CASE WHEN t.status = 'completed' THEN 1 END) as completedTasks
+      FROM users u
+      LEFT JOIN tasks t ON u.id = t.assignee_id
+      WHERE u.family_id = ?
+      GROUP BY u.id, u.name, u.email, u.role, u.created_at
+      ORDER BY
+        CASE u.role WHEN 'admin' THEN 1 ELSE 2 END,
+        u.created_at ASC
+    `).bind(user.familyId).all();
+
+    return c.json(members.results || []);
+
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+    console.error('Get family members error:', error);
+    throw new HTTPException(500, { message: '获取家庭成员失败' });
+  }
+});
+
+// 获取当前用户家庭的邀请码列表（不需要familyId参数）
+family.get('/invites', async (c) => {
+  try {
+    const user = getCurrentUser(c);
+
+    if (!user.familyId) {
+      throw new HTTPException(400, { message: '您还没有加入任何家庭' });
+    }
+
+    // 检查权限（只有管理员可以查看邀请码）
+    if (user.role !== 'admin') {
+      throw new HTTPException(403, { message: '只有家庭管理员可以查看邀请码' });
+    }
+
+    // 获取邀请码列表
+    const invites = await c.env.DB.prepare(`
+      SELECT
+        ic.*,
+        u.name as used_by_name
+      FROM invite_codes ic
+      LEFT JOIN users u ON ic.used_by = u.id
+      WHERE ic.family_id = ?
+      ORDER BY ic.created_at DESC
+    `).bind(user.familyId).all();
+
+    return c.json({ invites: invites.results || [] });
+
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+    console.error('Get invites error:', error);
+    throw new HTTPException(500, { message: '获取邀请码列表失败' });
+  }
+});
+
 // 获取家庭信息
 family.get('/:id', async (c) => {
   try {
     const user = getCurrentUser(c);
     const familyId = c.req.param('id');
-    
+
     // 检查权限
     if (!checkFamilyAccess(user, familyId)) {
       throw new HTTPException(403, { message: '无权限访问该家庭信息' });
     }
-    
+
     // 获取家庭信息
     const familyInfo = await c.env.DB.prepare(`
       SELECT f.*, admin.name as admin_name
@@ -73,28 +148,28 @@ family.get('/:id', async (c) => {
       LEFT JOIN users admin ON f.admin_id = admin.id
       WHERE f.id = ?
     `).bind(familyId).first() as any;
-    
+
     if (!familyInfo) {
       throw new HTTPException(404, { message: '家庭不存在' });
     }
-    
+
     // 获取家庭成员
     const members = await c.env.DB.prepare(`
       SELECT id, name, email, role, created_at
       FROM users
       WHERE family_id = ?
-      ORDER BY 
+      ORDER BY
         CASE role WHEN 'admin' THEN 1 ELSE 2 END,
         created_at ASC
     `).bind(familyId).all();
-    
+
     return c.json({
       family: {
         ...familyInfo,
         members: members.results || []
       }
     });
-    
+
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;
@@ -163,42 +238,88 @@ family.put('/:id', async (c) => {
   }
 });
 
-// 生成邀请码
+// 创建邀请码（不需要familyId参数，使用当前用户的家庭）
+family.post('/invites', async (c) => {
+  try {
+    const user = getCurrentUser(c);
+    const { maxUses = 5, expiresIn = 7 } = await c.req.json(); // 默认5次使用，7天过期
+
+    if (!user.familyId) {
+      throw new HTTPException(400, { message: '您还没有加入任何家庭' });
+    }
+
+    // 检查权限（只有管理员可以生成邀请码）
+    if (user.role !== 'admin') {
+      throw new HTTPException(403, { message: '只有家庭管理员可以生成邀请码' });
+    }
+
+    // 生成邀请码
+    const inviteId = crypto.randomUUID();
+    const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
+    const expiresAt = new Date(Date.now() + expiresIn * 24 * 60 * 60 * 1000).toISOString();
+
+    // 保存邀请码
+    await c.env.DB.prepare(
+      'INSERT INTO invite_codes (id, code, family_id, expires_at, max_uses, used_count) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(inviteId, inviteCode, user.familyId, expiresAt, maxUses, 0).run();
+
+    // 返回创建的邀请码
+    const newInvite = await c.env.DB.prepare(`
+      SELECT id, code, family_id, expires_at, max_uses, used_count, created_at
+      FROM invite_codes
+      WHERE id = ?
+    `).bind(inviteId).first();
+
+    return c.json(newInvite, 201);
+
+  } catch (error) {
+    if (error instanceof HTTPException) {
+      throw error;
+    }
+    console.error('Create invite code error:', error);
+    throw new HTTPException(500, { message: '创建邀请码失败' });
+  }
+});
+
+// 生成邀请码（兼容旧接口 - 带familyId参数）
 family.post('/:id/invite', async (c) => {
   try {
     const user = getCurrentUser(c);
     const familyId = c.req.param('id');
-    const { expiresIn = 7 } = await c.req.json(); // 默认7天过期
-    
+    const { maxUses = 5, expiresIn = 7 } = await c.req.json(); // 默认5次使用，7天过期
+
     // 检查权限（只有管理员可以生成邀请码）
     const familyInfo = await c.env.DB.prepare(
       'SELECT admin_id FROM families WHERE id = ?'
     ).bind(familyId).first() as any;
-    
+
     if (!familyInfo) {
       throw new HTTPException(404, { message: '家庭不存在' });
     }
-    
+
     if (familyInfo.admin_id !== user.userId) {
       throw new HTTPException(403, { message: '只有家庭管理员可以生成邀请码' });
     }
-    
+
     // 生成邀请码
+    const inviteId = crypto.randomUUID();
     const inviteCode = Math.random().toString(36).substring(2, 10).toUpperCase();
     const expiresAt = new Date(Date.now() + expiresIn * 24 * 60 * 60 * 1000).toISOString();
-    
+
     // 保存邀请码
     await c.env.DB.prepare(
-      'INSERT INTO invite_codes (code, family_id, expires_at) VALUES (?, ?, ?)'
-    ).bind(inviteCode, familyId, expiresAt).run();
-    
-    return c.json({
-      message: '邀请码生成成功',
-      inviteCode,
-      expiresAt,
-      expiresIn
-    });
-    
+      'INSERT INTO invite_codes (id, code, family_id, expires_at, max_uses, used_count) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(inviteId, inviteCode, familyId, expiresAt, maxUses, 0).run();
+
+    // 返回创建的邀请码
+    const newInvite = await c.env.DB.prepare(`
+      SELECT id, code, family_id, expires_at, max_uses, used_count, created_at
+      FROM invite_codes
+      WHERE id = ?
+    `).bind(inviteId).first();
+
+    return c.json(newInvite);
+
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;
@@ -409,58 +530,70 @@ family.post('/:id/transfer', async (c) => {
   }
 });
 
-// 获取家庭成员列表
-family.get('/members', async (c) => {
+// 删除邀请码
+family.delete('/invites/:id', async (c) => {
   try {
     const user = getCurrentUser(c);
-    
+    const inviteId = c.req.param('id');
+
     if (!user.familyId) {
       throw new HTTPException(400, { message: '您还没有加入任何家庭' });
     }
-    
-    // 获取家庭成员
-    const members = await c.env.DB.prepare(`
-      SELECT id, name, email, role, created_at
-      FROM users
-      WHERE family_id = ?
-      ORDER BY 
-        CASE role WHEN 'admin' THEN 1 ELSE 2 END,
-        created_at ASC
-    `).bind(user.familyId).all();
-    
-    return c.json(members.results || []);
-    
+
+    // 检查权限（只有管理员可以删除邀请码）
+    if (user.role !== 'admin') {
+      throw new HTTPException(403, { message: '只有家庭管理员可以删除邀请码' });
+    }
+
+    // 检查邀请码是否存在且属于当前家庭
+    const invite = await c.env.DB.prepare(
+      'SELECT id, family_id FROM invite_codes WHERE id = ?'
+    ).bind(inviteId).first() as any;
+
+    if (!invite) {
+      throw new HTTPException(404, { message: '邀请码不存在' });
+    }
+
+    if (invite.family_id !== user.familyId) {
+      throw new HTTPException(403, { message: '无权限删除该邀请码' });
+    }
+
+    // 删除邀请码
+    await c.env.DB.prepare('DELETE FROM invite_codes WHERE id = ?').bind(inviteId).run();
+
+    return c.json({ message: '邀请码删除成功' });
+
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;
     }
-    console.error('Get family members error:', error);
-    throw new HTTPException(500, { message: '获取家庭成员失败' });
+    console.error('Delete invite error:', error);
+    throw new HTTPException(500, { message: '删除邀请码失败' });
   }
 });
 
-// 获取邀请码列表
+// 获取邀请码列表（带familyId参数的版本）
 family.get('/:id/invites', async (c) => {
   try {
     const user = getCurrentUser(c);
     const familyId = c.req.param('id');
-    
+
     // 检查权限（只有管理员可以查看邀请码）
     const familyInfo = await c.env.DB.prepare(
       'SELECT admin_id FROM families WHERE id = ?'
     ).bind(familyId).first() as any;
-    
+
     if (!familyInfo) {
       throw new HTTPException(404, { message: '家庭不存在' });
     }
-    
+
     if (familyInfo.admin_id !== user.userId) {
       throw new HTTPException(403, { message: '只有家庭管理员可以查看邀请码' });
     }
-    
+
     // 获取邀请码列表
     const invites = await c.env.DB.prepare(`
-      SELECT 
+      SELECT
         ic.*,
         u.name as used_by_name
       FROM invite_codes ic
@@ -468,9 +601,9 @@ family.get('/:id/invites', async (c) => {
       WHERE ic.family_id = ?
       ORDER BY ic.created_at DESC
     `).bind(familyId).all();
-    
+
     return c.json({ invites: invites.results || [] });
-    
+
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;

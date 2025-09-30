@@ -11,20 +11,20 @@ export interface ApiEndpoint {
 // API端点配置（按优先级排序）
 export const API_ENDPOINTS: ApiEndpoint[] = [
   {
-    name: 'Local Development',
-    baseUrl: 'http://localhost:3001',
-    priority: 1,
-    healthCheck: '/health',
-    timeout: 5000,
-    retries: 2
-  },
-  {
     name: 'Cloudflare Workers (Primary)',
-    baseUrl: 'https://home-list-api.zhangkaishen.workers.dev',
-    priority: 2,
+    baseUrl: 'https://home-list-api.dylan-chiang.workers.dev',
+    priority: 1,
     healthCheck: '/health',
     timeout: 10000,
     retries: 3
+  },
+  {
+    name: 'Local Development',
+    baseUrl: 'http://localhost:3001',
+    priority: 2,
+    healthCheck: '/health',
+    timeout: 5000,
+    retries: 2
   },
   {
     name: 'Mock Server',

@@ -19,9 +19,14 @@ export const ApiEndpointSwitcher: React.FC<ApiEndpointSwitcherProps> = ({ classN
     try {
       const endpoint = getCurrentEndpoint();
       setCurrentEndpoint(endpoint);
-      
+
       const status = getHealthStatus();
-      setHealthStatus(status);
+      // 转换 Map 为 Record
+      const statusRecord: Record<string, boolean> = {};
+      status.forEach((value, key) => {
+        statusRecord[key] = value;
+      });
+      setHealthStatus(statusRecord);
       
       // 获取最后检查时间
       const lastCheckTime = localStorage.getItem('api_last_health_check');
@@ -181,11 +186,6 @@ export const ApiEndpointSwitcher: React.FC<ApiEndpointSwitcherProps> = ({ classN
                       <span className={`text-xs ${getStatusColor(endpoint.name)}`}>
                         状态: {getStatusText(endpoint.name)}
                       </span>
-                      {endpoint.description && (
-                        <span className="text-xs text-gray-400">
-                          • {endpoint.description}
-                        </span>
-                      )}
                     </div>
                   </div>
                 </button>

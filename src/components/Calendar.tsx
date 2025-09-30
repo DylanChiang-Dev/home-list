@@ -28,7 +28,17 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, selectedDate, onDateSelect }
 
   const getTasksForDate = (date: Date) => {
     const dateStr = date.toISOString().split('T')[0];
-    return tasks.filter(task => {
+    if (tasks.length > 0 && dateStr === '2025-09-30') {
+      console.log(`[Calendar] === 調試 9/30 任務匹配 ===`);
+      console.log(`[Calendar] 查找日期: ${dateStr}`);
+      console.log(`[Calendar] 任務列表:`, tasks.map(t => ({
+        title: t.title,
+        type: t.type,
+        dueDate: t.dueDate,
+        dueDateType: typeof t.dueDate
+      })));
+    }
+    const filteredTasks = tasks.filter(task => {
       // 检查结束日期
       if (task.recurringRule?.endDate) {
         const endDate = new Date(task.recurringRule.endDate);
@@ -105,11 +115,17 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, selectedDate, onDateSelect }
       // 处理常规任务 - 只在截止日期显示
       if (task.type === 'regular' && task.dueDate) {
         const taskDate = new Date(task.dueDate).toISOString().split('T')[0];
-        return taskDate === dateStr;
+        const matches = taskDate === dateStr;
+        if (matches) {
+          console.log(`[Calendar] ✓ 找到任務: ${task.title}, dueDate: ${task.dueDate}, taskDate: ${taskDate}`);
+        }
+        return matches;
       }
-      
+
       return false;
     });
+    console.log(`[Calendar] 日期 ${dateStr} 共有 ${filteredTasks.length} 個任務`);
+    return filteredTasks;
   };
 
   const navigateMonth = (direction: 'prev' | 'next') => {

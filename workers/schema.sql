@@ -50,9 +50,12 @@ CREATE TABLE tasks (
 
 -- 邀请码表
 CREATE TABLE invite_codes (
-    code TEXT PRIMARY KEY,
+    id TEXT PRIMARY KEY DEFAULT (lower(hex(randomblob(16)))),
+    code TEXT UNIQUE NOT NULL,
     family_id TEXT NOT NULL,
     expires_at DATETIME NOT NULL,
+    max_uses INTEGER DEFAULT 1,
+    used_count INTEGER DEFAULT 0,
     used_by TEXT,
     created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (family_id) REFERENCES families(id) ON DELETE CASCADE,

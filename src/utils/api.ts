@@ -7,38 +7,38 @@ function getApiBase(): string {
 
 export const API_BASE_URL = getApiBase();
 
-// API端点
+// API端点（只包含路径，不包含base URL）
 export const API_ENDPOINTS = {
   // 认证相关
   AUTH: {
-    LOGIN: `${API_BASE_URL}/api/auth/login`,
-    REGISTER: `${API_BASE_URL}/api/auth/register`,
-    ME: `${API_BASE_URL}/api/auth/me`,
-    PROFILE: `${API_BASE_URL}/api/auth/profile`,
-    UPDATE: `${API_BASE_URL}/api/auth/profile`,
+    LOGIN: '/api/auth/login',
+    REGISTER: '/api/auth/register',
+    ME: '/api/auth/me',
+    PROFILE: '/api/auth/profile',
+    UPDATE: '/api/auth/profile',
   },
   // 任务相关
   TASKS: {
-    LIST: `${API_BASE_URL}/api/tasks`,
-    CREATE: `${API_BASE_URL}/api/tasks`,
-    DETAIL: (id: string) => `${API_BASE_URL}/api/tasks/${id}`,
-    UPDATE: (id: string) => `${API_BASE_URL}/api/tasks/${id}`,
-    DELETE: (id: string) => `${API_BASE_URL}/api/tasks/${id}`,
-    COMPLETE: (id: string) => `${API_BASE_URL}/api/tasks/${id}/complete`,
+    LIST: '/api/tasks',
+    CREATE: '/api/tasks',
+    DETAIL: (id: string) => `/api/tasks/${id}`,
+    UPDATE: (id: string) => `/api/tasks/${id}`,
+    DELETE: (id: string) => `/api/tasks/${id}`,
+    COMPLETE: (id: string) => `/api/tasks/${id}/complete`,
   },
   // 家庭管理相关
   FAMILY: {
-    CREATE: `${API_BASE_URL}/api/family`,
-    JOIN: `${API_BASE_URL}/api/family/join`,
-    MEMBERS: `${API_BASE_URL}/api/family/members`,
-    INVITE: `${API_BASE_URL}/api/family/invite`,
-    LEAVE: `${API_BASE_URL}/api/family/leave`,
-    INVITES: `${API_BASE_URL}/api/family/invites`,
-    DELETE_INVITE: (id: string) => `${API_BASE_URL}/api/family/invites/${id}`,
+    CREATE: '/api/family',
+    JOIN: '/api/family/join',
+    MEMBERS: '/api/family/members',
+    INVITE: '/api/family/invite',
+    LEAVE: '/api/family/leave',
+    INVITES: '/api/family/invites',
+    DELETE_INVITE: (id: string) => `/api/family/invites/${id}`,
   },
   // 数据迁移
   MIGRATION: {
-    IMPORT: `${API_BASE_URL}/api/migration/import`,
+    IMPORT: '/api/migration/import',
   },
 };
 
