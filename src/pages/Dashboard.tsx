@@ -166,8 +166,9 @@ const Dashboard: React.FC = () => {
           {/* Left Side - Calendar */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-lg shadow p-6">
-              <h2 className="text-lg font-semibold text-gray-900 mb-4">任务日历</h2>
-              {console.log('[Dashboard] Passing tasks to Calendar:', tasks.length)}
+              <h2 className="text-lg font-semibold text-gray-900 mb-4">
+                任务日历 (共{tasks.length}個任務)
+              </h2>
               <Calendar
                 selectedDate={selectedDate}
                 onDateSelect={setSelectedDate}
