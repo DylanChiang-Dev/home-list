@@ -42,10 +42,18 @@ const Calendar: React.FC<CalendarProps> = ({ tasks, selectedDate, onDateSelect }
     const daysInMonth = getDaysInMonth(currentMonth);
     const dateMap = new Map<string, Task[]>();
 
+    // 調試：檢查傳入的任務
+    console.log('[Calendar] Total tasks received:', tasks.length);
+
     for (let day = 1; day <= daysInMonth; day++) {
       const date = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), day);
       const dateKey = date.toDateString();
       const tasksForDay = getTasksForDate(tasks, date);
+
+      if (tasksForDay.length > 0) {
+        console.log(`[Calendar] ${dateKey}: ${tasksForDay.length} tasks`, tasksForDay.map(t => t.title));
+      }
+
       dateMap.set(dateKey, tasksForDay);
     }
 
