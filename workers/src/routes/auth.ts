@@ -21,51 +21,88 @@ const auth = new Hono<{ Bindings: Bindings }>();
 // 用户注册
 auth.post('/register', async (c) => {
   try {
-    const { email, password, name } = await c.req.json();
-    
+    const { email, password, name, inviteCode, familyName } = await c.req.json();
+
     // 验证输入
     if (!email || !password || !name) {
       throw new HTTPException(400, { message: '邮箱、密码和姓名不能为空' });
     }
-    
+
     if (password.length < 6) {
       throw new HTTPException(400, { message: '密码长度至少6位' });
     }
-    
+
     // 检查邮箱格式
     const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
     if (!emailRegex.test(email)) {
       throw new HTTPException(400, { message: '邮箱格式不正确' });
     }
-    
+
     // 检查用户是否已存在
     const existingUser = await c.env.DB.prepare(
       'SELECT id FROM users WHERE email = ?'
     ).bind(email).first();
-    
+
     if (existingUser) {
       throw new HTTPException(400, { message: '该邮箱已被注册' });
     }
-    
+
     // 加密密码
     const passwordHash = await hashPassword(password);
-    
+
+    let familyId = null;
+    let role = 'member';
+
+    // 处理邀请码加入家庭
+    if (inviteCode) {
+      const invite = await c.env.DB.prepare(`
+        SELECT id, family_id, expires_at, max_uses, used_count
+        FROM invite_codes
+        WHERE code = ? AND expires_at > ?
+      `).bind(inviteCode, new Date().toISOString()).first() as any;
+
+      if (!invite) {
+        throw new HTTPException(400, { message: '邀请码无效或已过期' });
+      }
+
+      if (invite.max_uses && invite.used_count >= invite.max_uses) {
+        throw new HTTPException(400, { message: '邀请码使用次数已达上限' });
+      }
+
+      familyId = invite.family_id;
+
+      // 更新邀请码使用次数
+      await c.env.DB.prepare(
+        'UPDATE invite_codes SET used_count = used_count + 1 WHERE id = ?'
+      ).bind(invite.id).run();
+    }
+    // 处理创建新家庭
+    else if (familyName) {
+      familyId = crypto.randomUUID();
+      role = 'admin';
+
+      await c.env.DB.prepare(
+        'INSERT INTO families (id, name, created_by) VALUES (?, ?, ?)'
+      ).bind(familyId, familyName, email).run();
+    }
+
     // 创建用户
     const userId = crypto.randomUUID();
     await c.env.DB.prepare(
-      'INSERT INTO users (id, email, password_hash, name) VALUES (?, ?, ?, ?)'
-    ).bind(userId, email, passwordHash, name).run();
-    
+      'INSERT INTO users (id, email, password_hash, name, family_id, role) VALUES (?, ?, ?, ?, ?, ?)'
+    ).bind(userId, email, passwordHash, name, familyId, role).run();
+
     // 生成JWT token
     const token = await generateToken(
       {
         userId,
         email,
-        role: 'member'
+        familyId: familyId || undefined,
+        role
       },
       c.env.JWT_SECRET
     );
-    
+
     return c.json({
       message: '注册成功',
       token,
@@ -73,10 +110,11 @@ auth.post('/register', async (c) => {
         id: userId,
         email,
         name,
-        role: 'member'
+        familyId,
+        role
       }
     });
-    
+
   } catch (error) {
     if (error instanceof HTTPException) {
       throw error;

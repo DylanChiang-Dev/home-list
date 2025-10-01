@@ -142,13 +142,15 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const register = async (userData: RegisterData): Promise<{ success: boolean; error?: string }> => {
     try {
       setIsLoading(true);
-      
+
       const response = await apiPost<RegisterResponse>(API_ENDPOINTS.AUTH.REGISTER, {
         name: userData.name,
         email: userData.email,
-        password: userData.password
+        password: userData.password,
+        inviteCode: userData.inviteCode,
+        familyName: userData.familyName
       });
-      
+
       if (response.success && response.data?.token) {
         const data = response.data;
         const userInfo = {
@@ -159,11 +161,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           role: data.user.role,
           createdAt: new Date().toISOString()
         };
-        
+
         localStorage.setItem('authToken', data.token);
         localStorage.setItem('userData', JSON.stringify(userInfo));
         setUser(userInfo);
-        
+
         return { success: true };
       } else {
         return { success: false, error: response.error || '注册失败' };
