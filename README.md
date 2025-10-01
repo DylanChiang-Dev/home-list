@@ -452,11 +452,8 @@ A: 檢查資料庫遷移是否正確執行，查看 Worker 日誌（`npx wrangle
 
 ## 📧 聯絡方式
 
-專案維護者：[Your Name]
-- GitHub: [@your-username](https://github.com/your-username)
-- Email: your.email@example.com
-
-專案連結：[https://github.com/your-username/home-list](https://github.com/your-username/home-list)
+專案維護者：Dylan.Chiang
+- GitHub: [@DylanChiang-Dev]([https://github.com/your-username](https://github.com/DylanChiang-Dev))
 
 ---
 
