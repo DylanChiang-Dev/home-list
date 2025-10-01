@@ -83,7 +83,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     const initAuth = async () => {
       const token = localStorage.getItem('authToken');
       const userData = localStorage.getItem('userData');
-      
+
+      // 关键修复: 先清除user状态，确保初始化期间不会误判为已登录
+      setUser(null);
+
       if (token) {
         // 验证token有效性
         const isValid = await validateToken(token);
@@ -93,14 +96,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           localStorage.removeItem('userData');
           setUser(null);
         }
-      } else if (userData) {
-        // 有用户数据但没有token，清除数据
-        localStorage.removeItem('userData');
+        // 如果验证成功，validateToken内部已经设置了user
+      } else {
+        // 没有token，清除所有认证数据
+        if (userData) {
+          localStorage.removeItem('userData');
+        }
+        setUser(null);
       }
-      
+
       setIsLoading(false);
     };
-    
+
     initAuth();
   }, []);
 
