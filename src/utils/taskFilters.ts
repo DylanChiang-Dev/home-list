@@ -6,36 +6,58 @@
 import { Task } from '../types/task';
 
 /**
+ * 規範化日期 - 移除時間部分，只保留日期
+ * 處理多種日期格式："2025-09-30 13:47:24" 或 "2025-09-30"
+ */
+function normalizeDateOnly(dateInput: string | Date): Date {
+  let date: Date;
+
+  if (typeof dateInput === 'string') {
+    // 如果包含時間，分割後只取日期部分
+    const dateStr = dateInput.split(' ')[0];
+    date = new Date(dateStr + 'T00:00:00');
+  } else {
+    date = new Date(dateInput);
+  }
+
+  // 返回只有日期部分的 Date 對象
+  return new Date(date.getFullYear(), date.getMonth(), date.getDate());
+}
+
+/**
  * 檢查任務是否應該在指定日期顯示
  * 此函數被 Calendar 和 Dashboard 共同使用
  */
 export function shouldShowTaskOnDate(task: Task, date: Date): boolean {
+  // 規範化比較日期（只保留日期部分）
+  const compareDate = normalizeDateOnly(date);
+
   // 检查结束日期
   if (task.recurringRule?.endDate) {
-    const endDate = new Date(task.recurringRule.endDate);
-    if (date > endDate) return false;
+    const endDate = normalizeDateOnly(task.recurringRule.endDate);
+    if (compareDate > endDate) return false;
   }
 
   // 处理长期任务 - 每天都显示直到截止日期
   if (task.type === 'long_term') {
-    const createdDate = new Date(task.createdAt);
-    if (date < createdDate) return false;
+    const createdDate = normalizeDateOnly(task.createdAt);
+    if (compareDate < createdDate) return false;
 
     if (task.dueDate) {
-      const dueDate = new Date(task.dueDate);
-      return date <= dueDate;
+      const dueDate = normalizeDateOnly(task.dueDate);
+      return compareDate <= dueDate;
     }
     return true;
   }
 
   // 处理重复任务
   if (task.type === 'recurring') {
-    const createdDate = new Date(task.createdAt);
-    if (date < createdDate) return false;
+    const createdDate = normalizeDateOnly(task.createdAt);
+    if (compareDate < createdDate) return false;
 
     if (task.recurringRule) {
       const { type, interval, daysOfWeek, daysOfMonth, monthsOfYear, datesOfYear } = task.recurringRule;
-      const daysDiff = Math.floor((date.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
+      const daysDiff = Math.floor((compareDate.getTime() - createdDate.getTime()) / (1000 * 60 * 60 * 24));
 
       if (type === 'daily') {
         return daysDiff % (interval || 1) === 0;
@@ -44,25 +66,25 @@ export function shouldShowTaskOnDate(task: Task, date: Date): boolean {
       else if (type === 'weekly') {
         const weeksDiff = Math.floor(daysDiff / 7);
         const isCorrectWeek = weeksDiff % (interval || 1) === 0;
-        const dayOfWeek = date.getDay() === 0 ? 7 : date.getDay(); // 转换为1-7格式
+        const dayOfWeek = compareDate.getDay() === 0 ? 7 : compareDate.getDay(); // 转换为1-7格式
         const isCorrectDay = daysOfWeek && daysOfWeek.includes(dayOfWeek);
         return isCorrectWeek && isCorrectDay;
       }
 
       else if (type === 'monthly') {
-        const currentMonth = date.getMonth();
-        const currentDay = date.getDate();
+        const currentMonth = compareDate.getMonth();
+        const currentDay = compareDate.getDate();
         const createdMonth = createdDate.getMonth();
-        const monthsDiff = (date.getFullYear() - createdDate.getFullYear()) * 12 + (currentMonth - createdMonth);
+        const monthsDiff = (compareDate.getFullYear() - createdDate.getFullYear()) * 12 + (currentMonth - createdMonth);
         const isCorrectMonth = monthsDiff % (interval || 1) === 0;
         const isCorrectDay = daysOfMonth && daysOfMonth.includes(currentDay);
         return isCorrectMonth && isCorrectDay;
       }
 
       else if (type === 'yearly') {
-        const currentYear = date.getFullYear();
-        const currentMonth = date.getMonth() + 1; // 转换为1-12格式
-        const currentDay = date.getDate();
+        const currentYear = compareDate.getFullYear();
+        const currentMonth = compareDate.getMonth() + 1; // 转换为1-12格式
+        const currentDay = compareDate.getDate();
         const createdYear = createdDate.getFullYear();
         const yearsDiff = currentYear - createdYear;
         const isCorrectYear = yearsDiff % (interval || 1) === 0;
@@ -85,9 +107,8 @@ export function shouldShowTaskOnDate(task: Task, date: Date): boolean {
 
   // 处理常规任务 - 只在截止日期显示
   if (task.type === 'regular' && task.dueDate) {
-    const dateStr = date.toISOString().split('T')[0];
-    const taskDate = new Date(task.dueDate).toISOString().split('T')[0];
-    return taskDate === dateStr;
+    const taskDate = normalizeDateOnly(task.dueDate);
+    return compareDate.getTime() === taskDate.getTime();
   }
 
   return false;
