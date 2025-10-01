@@ -46,31 +46,31 @@ const ErrorDiagnosis: React.FC = () => {
   };
 
   const handleTestError = () => {
-    // 触发一个测试错误
-    fetch('https://home-list-api.dylan-chiang.workers.dev/api/family/members', {
+    // 触发一个测试错误 - 使用无效的 URL
+    fetch('https://invalid-domain-that-does-not-exist-12345.com/api/test', {
       headers: {
-        'Origin': 'http://localhost:5173',
         'Content-Type': 'application/json'
       }
     }).catch(error => {
-      console.log('测试错误已触发:', error);
+      console.log('测试网络错误已触发:', error);
     });
   };
 
   const handleTestAbort = () => {
     // 触发一个取消错误
     const controller = new AbortController();
-    
-    fetch('https://home-list-api.dylan-chiang.workers.dev/api/family/members', {
+    const token = localStorage.getItem('authToken');
+
+    fetch('https://home-list-api.dylan-chiang.workers.dev/api/tasks', {
       signal: controller.signal,
       headers: {
-        'Origin': 'http://localhost:5173',
-        'Content-Type': 'application/json'
+        'Content-Type': 'application/json',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {})
       }
     }).catch(error => {
       console.log('测试取消错误已触发:', error);
     });
-    
+
     // 立即取消请求
     setTimeout(() => controller.abort(), 10);
   };
