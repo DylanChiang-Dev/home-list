@@ -8,43 +8,17 @@ export interface ApiEndpoint {
   retries: number;
 }
 
-// API端点配置（按优先级排序）
+// API端点配置（混合模式：只使用 Cloudflare Workers 生產環境）
 export const API_ENDPOINTS: ApiEndpoint[] = [
   {
-    name: 'Cloudflare Workers (Primary)',
+    name: 'Cloudflare Workers (Production)',
     baseUrl: 'https://home-list-api.dylan-chiang.workers.dev',
     priority: 1,
     healthCheck: '/health',
-    timeout: 5000, // 缩短到5秒,快速失败
-    retries: 2 // 减少重试次数
-  },
-  {
-    name: 'Local Development',
-    baseUrl: 'http://localhost:3001',
-    priority: 2,
-    healthCheck: '/health',
-    timeout: 3000, // 本地更快
-    retries: 1
-  },
-  {
-    name: 'Mock Server',
-    baseUrl: 'http://localhost:3002',
-    priority: 3,
-    healthCheck: '/health',
-    timeout: 3000,
-    retries: 1
+    timeout: 10000, // 增加超時時間以適應網絡延遲
+    retries: 3 // 增加重試次數以提高穩定性
   }
 ];
-
-// 注意: 如果配置了 Workers 自定义域名,可以添加:
-// {
-//   name: 'Custom Domain API',
-//   baseUrl: 'https://api.3331322.xyz',
-//   priority: 1,
-//   healthCheck: '/health',
-//   timeout: 4000,
-//   retries: 2
-// }
 
 // 当前活跃的API端点
 let currentEndpoint: ApiEndpoint = API_ENDPOINTS[0];

@@ -165,7 +165,7 @@ export const apiRequest = async <T>(
       console.log('Request options:', options);
       console.log('Request headers:', getAuthHeaders());
       
-      // 创建AbortController用于超时控制
+      // 創建AbortController用於超時控制
       const controller = new AbortController();
       const timeoutId = setTimeout(() => {
         console.log(`Request timeout after ${config.timeout}ms`);
@@ -173,7 +173,12 @@ export const apiRequest = async <T>(
       }, config.timeout);
       
       const response = await fetch(url, {
-        headers: getAuthHeaders(),
+        headers: {
+          ...getAuthHeaders(),
+          'Accept': 'application/json'
+          // 已移除 Accept-Encoding 头，让浏览器自动处理压缩
+          // 後端已禁用壓縮中間件，現在應該返回未壓縮的 JSON
+        },
         signal: controller.signal,
         ...options,
       });
@@ -182,22 +187,55 @@ export const apiRequest = async <T>(
 
       // 检查响应内容类型
       const contentType = response.headers.get('content-type');
+      const contentEncoding = response.headers.get('content-encoding');
       console.log('Response content-type:', contentType);
+      console.log('Response content-encoding:', contentEncoding);
       console.log('Response status:', response.status);
       console.log('Response URL:', response.url);
       
-      // 如果不是JSON响应，说明可能是HTML页面
+      // 检查是否为 JSON 响应
       if (!contentType || !contentType.includes('application/json')) {
-        const text = await response.text();
+        let text: string;
+        try {
+          text = await response.text();
+        } catch (textError) {
+          console.error('Failed to read response as text:', textError);
+          return { 
+            success: false, 
+            error: `无法读取响应内容: ${textError.message}`, 
+            status: response.status 
+          };
+        }
+        
         console.error('Received non-JSON response:', text.substring(0, 200));
         return { 
           success: false, 
-          error: `API端点返回了HTML页面而不是JSON。请检查API URL配置: ${url}`, 
+          error: `API端点返回了非JSON响应。请检查API URL配置: ${url}`, 
           status: response.status 
         };
       }
 
-      const data = await response.json();
+      let data: any;
+      try {
+        data = await response.json();
+      } catch (jsonError) {
+        console.error('Failed to parse JSON response:', jsonError);
+        
+        // 尝试读取原始响应文本进行调试
+        try {
+          const rawText = await response.clone().text();
+          console.error('Raw response text (first 200 chars):', rawText.substring(0, 200));
+          console.error('Raw response text (hex):', Array.from(rawText.substring(0, 50)).map(c => c.charCodeAt(0).toString(16)).join(' '));
+        } catch (debugError) {
+          console.error('Failed to read raw response for debugging:', debugError);
+        }
+        
+        return { 
+          success: false, 
+          error: `JSON解析失败: ${jsonError.message}`, 
+          status: response.status 
+        };
+      }
 
       if (response.ok) {
         console.log(`✅ Request successful on attempt ${attempt}`);

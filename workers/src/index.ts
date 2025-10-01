@@ -27,10 +27,10 @@ const app = new Hono<{ Bindings: Bindings }>();
 app.use('*', logger());
 app.use('*', prettyJSON());
 
-// 压缩中间件 (支持 gzip 和 brotli)
-app.use('*', compress({
-  threshold: 1024, // 大于 1KB 才压缩
-}));
+// 暂时禁用压缩中间件以避免前端解析问题
+// app.use('*', compress({
+//   threshold: 1024, // 大于 1KB 才压缩
+// }));
 
 // CORS配置 (优化预检请求)
 app.use('*', async (c, next) => {
