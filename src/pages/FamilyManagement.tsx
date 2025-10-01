@@ -38,11 +38,8 @@ const FamilyManagement: React.FC = () => {
         console.warn('⚠️ API健康检查失败，但继续尝试加载数据');
       }
 
-      // 使用批量API调用来并行获取数据
-      const [membersResponse, invitesResponse] = await Promise.all([
-        apiGet<any[]>(API_ENDPOINTS.FAMILY.MEMBERS, { fast: true }),
-        apiGet<{ invites: any[] }>(API_ENDPOINTS.FAMILY.INVITES, { fast: true })
-      ]);
+      // 获取家庭成员数据
+      const membersResponse = await apiGet<any[]>(API_ENDPOINTS.FAMILY.MEMBERS, { fast: true });
 
       // 处理家庭成员数据
       if (membersResponse.success && membersResponse.data) {
@@ -61,8 +58,10 @@ const FamilyManagement: React.FC = () => {
         }
       }
 
-      // 处理邀请码数据
-      if (membersResponse.success) {
+      // 只有 admin 才加载邀请码数据
+      if (user?.role === 'admin' && membersResponse.success) {
+        const invitesResponse = await apiGet<{ invites: any[] }>(API_ENDPOINTS.FAMILY.INVITES, { fast: true });
+
         if (invitesResponse.success && invitesResponse.data) {
           console.log('✅ 邀请码数据加载成功:', invitesResponse.data);
           // 從 data.invites 中提取邀請碼數組並轉換
@@ -71,14 +70,15 @@ const FamilyManagement: React.FC = () => {
           setInviteCodes(convertedInvites);
         } else {
           console.error('❌ 邀请码数据加载失败:', invitesResponse.error);
-          // 邀請碼加載失敗不阻止頁面顯示，只記錄錯誤
-          console.error('加載邀請碼失敗:', invitesResponse.error);
           setInviteCodes([]);
         }
+      } else {
+        // 非 admin 用户不显示邀请码
+        setInviteCodes([]);
       }
 
-      // 如果两个请求都失败了，显示网络连接提示
-      if (!membersResponse.success && !invitesResponse.success) {
+      // 如果成员数据加载失败，显示网络连接提示
+      if (!membersResponse.success) {
         setError('网络连接异常，请检查网络设置或稍后重试。如果问题持续存在，请联系技术支持。');
       }
 
@@ -345,22 +345,25 @@ const FamilyManagement: React.FC = () => {
                   </span>
                 </div>
               </button>
-              <button
-                onClick={() => setActiveTab('invites')}
-                className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
-                  activeTab === 'invites'
-                    ? 'border-blue-500 text-blue-600'
-                    : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
-                }`}
-              >
-                <div className="flex items-center space-x-2">
-                  <UserPlus className="w-5 h-5" />
-                  <span>邀请管理</span>
-                  <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs">
-                    {inviteCodes.length}
-                  </span>
-                </div>
-              </button>
+              {/* 只有 admin 才显示邀请管理标签 */}
+              {user?.role === 'admin' && (
+                <button
+                  onClick={() => setActiveTab('invites')}
+                  className={`py-4 px-1 border-b-2 font-medium text-sm transition-colors ${
+                    activeTab === 'invites'
+                      ? 'border-blue-500 text-blue-600'
+                      : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center space-x-2">
+                    <UserPlus className="w-5 h-5" />
+                    <span>邀请管理</span>
+                    <span className="bg-gray-100 text-gray-600 px-2 py-1 rounded-full text-xs">
+                      {inviteCodes.length}
+                    </span>
+                  </div>
+                </button>
+              )}
             </nav>
           </div>
 
@@ -430,8 +433,8 @@ const FamilyManagement: React.FC = () => {
             </div>
           )}
 
-          {/* 邀请管理标签页 */}
-          {activeTab === 'invites' && (
+          {/* 邀请管理标签页 - 只有 admin 可见 */}
+          {activeTab === 'invites' && user?.role === 'admin' && (
             <div className="p-6">
               <div className="flex justify-between items-center mb-6">
                 <div>
