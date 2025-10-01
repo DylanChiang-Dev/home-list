@@ -65,15 +65,18 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           role: response.data.user.role,
           createdAt: response.data.user.createdAt
         };
-        
+
         localStorage.setItem('userData', JSON.stringify(userData));
         setUser(userData);
         return true;
       } else {
+        // 验证失败，明确设置为null
+        setUser(null);
         return false;
       }
     } catch (error) {
       console.error('Token validation failed:', error);
+      setUser(null);
       return false;
     }
   };
@@ -84,21 +87,17 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
       const token = localStorage.getItem('authToken');
       const userData = localStorage.getItem('userData');
 
-      // 关键修复: 先清除user状态，确保初始化期间不会误判为已登录
-      setUser(null);
-
       if (token) {
-        // 验证token有效性
+        // 有token，验证有效性
         const isValid = await validateToken(token);
         if (!isValid) {
           // Token无效，清除本地数据
           localStorage.removeItem('authToken');
           localStorage.removeItem('userData');
-          setUser(null);
         }
-        // 如果验证成功，validateToken内部已经设置了user
+        // validateToken内部会设置user状态
       } else {
-        // 没有token，清除所有认证数据
+        // 没有token，清除所有残留数据并确保user为null
         if (userData) {
           localStorage.removeItem('userData');
         }
