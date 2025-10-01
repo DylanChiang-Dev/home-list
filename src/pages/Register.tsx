@@ -1,7 +1,8 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
-import { User, Mail, Lock, Users, Key, UserPlus, AlertCircle } from 'lucide-react';
+import { User, Mail, Lock, Users, Key, UserPlus, AlertCircle, Loader2 } from 'lucide-react';
 import { useAuth, RegisterData } from '../contexts/AuthContext';
+import { checkEndpointHealth, getCurrentEndpoint } from '../utils/apiConfig';
 
 const Register: React.FC = () => {
   const [formData, setFormData] = useState({
@@ -14,8 +15,34 @@ const Register: React.FC = () => {
   });
   const [registrationType, setRegistrationType] = useState<'create' | 'join'>('create');
   const [error, setError] = useState('');
+  const [isCheckingNetwork, setIsCheckingNetwork] = useState(true);
+  const [networkStatus, setNetworkStatus] = useState<'online' | 'offline' | 'slow'>('online');
   const { register, isLoading } = useAuth();
   const navigate = useNavigate();
+
+  // 首次加载时快速检测网络
+  useEffect(() => {
+    const checkNetwork = async () => {
+      const endpoint = getCurrentEndpoint();
+      const startTime = Date.now();
+      const isHealthy = await checkEndpointHealth(endpoint);
+      const duration = Date.now() - startTime;
+
+      if (!isHealthy) {
+        setNetworkStatus('offline');
+        setError('无法连接到服务器,请检查网络连接');
+      } else if (duration > 3000) {
+        setNetworkStatus('slow');
+        setError('网络连接较慢,可能影响使用体验');
+      } else {
+        setNetworkStatus('online');
+      }
+
+      setIsCheckingNetwork(false);
+    };
+
+    checkNetwork();
+  }, []);
 
   const handleInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value } = e.target;
@@ -66,6 +93,23 @@ const Register: React.FC = () => {
     }
   };
 
+  // 显示网络检测加载屏幕
+  if (isCheckingNetwork) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center px-4">
+        <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8">
+          <div className="flex flex-col items-center space-y-4">
+            <Loader2 className="w-12 h-12 text-blue-600 animate-spin" />
+            <p className="text-gray-700 text-lg font-medium">正在检测网络连接...</p>
+            <p className="text-gray-500 text-sm text-center">
+              首次加载需要几秒钟
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-400 to-blue-600 flex items-center justify-center px-4">
       <div className="max-w-md w-full bg-white rounded-lg shadow-xl p-8">
@@ -75,9 +119,9 @@ const Register: React.FC = () => {
         </div>
 
         {error && (
-          <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded-lg flex items-center space-x-2">
-            <AlertCircle className="w-5 h-5 text-red-500" />
-            <span className="text-red-700">{error}</span>
+          <div className={`mb-4 p-4 ${networkStatus === 'offline' ? 'bg-red-50 border-red-200' : 'bg-yellow-50 border-yellow-200'} border rounded-lg flex items-center space-x-2`}>
+            <AlertCircle className={`w-5 h-5 ${networkStatus === 'offline' ? 'text-red-500' : 'text-yellow-500'}`} />
+            <span className={networkStatus === 'offline' ? 'text-red-700' : 'text-yellow-700'}>{error}</span>
           </div>
         )}
         
@@ -211,11 +255,20 @@ const Register: React.FC = () => {
           
           <button
               type="submit"
-              disabled={isLoading}
+              disabled={isLoading || networkStatus === 'offline'}
               className="w-full bg-blue-600 text-white py-3 px-4 rounded-lg hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2 transition duration-200 flex items-center justify-center space-x-2 disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              <UserPlus className="w-5 h-5" />
-              <span>{isLoading ? '注册中...' : '注册账户'}</span>
+              {isLoading ? (
+                <>
+                  <Loader2 className="w-5 h-5 animate-spin" />
+                  <span>注册中...</span>
+                </>
+              ) : (
+                <>
+                  <UserPlus className="w-5 h-5" />
+                  <span>注册账户</span>
+                </>
+              )}
             </button>
         </form>
         

@@ -108,9 +108,10 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
   const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
     try {
       setIsLoading(true);
-      
-      const response = await apiPost<LoginResponse>(API_ENDPOINTS.AUTH.LOGIN, { email, password });
-      
+
+      // 使用快速重试配置登录
+      const response = await apiPost<LoginResponse>(API_ENDPOINTS.AUTH.LOGIN, { email, password }, { fast: true });
+
       if (response.success && response.data?.token) {
         const data = response.data;
         const userData = {
@@ -121,11 +122,11 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
           role: data.user.role,
           createdAt: new Date().toISOString()
         };
-        
+
         localStorage.setItem('authToken', data.token);
         localStorage.setItem('userData', JSON.stringify(userData));
         setUser(userData);
-        
+
         return { success: true };
       } else {
         return { success: false, error: response.error || '登录失败' };
@@ -143,13 +144,14 @@ export const AuthProvider: React.FC<{ children: ReactNode }> = ({ children }) =>
     try {
       setIsLoading(true);
 
+      // 使用快速重试配置注册
       const response = await apiPost<RegisterResponse>(API_ENDPOINTS.AUTH.REGISTER, {
         name: userData.name,
         email: userData.email,
         password: userData.password,
         inviteCode: userData.inviteCode,
         familyName: userData.familyName
-      });
+      }, { fast: true });
 
       if (response.success && response.data?.token) {
         const data = response.data;

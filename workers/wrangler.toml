@@ -3,6 +3,13 @@ main = "src/index.ts"
 compatibility_date = "2024-01-01"
 compatibility_flags = ["nodejs_compat"]
 
+# 针对中国地区优化
+# Cloudflare 的 Enterprise 套餐支持中国网络优化
+# 免费套餐可以通过以下方式提升性能:
+# 1. 启用 Argo Smart Routing (付费)
+# 2. 使用自定义域名 + Cloudflare CDN
+# 3. 优化 Workers 代码性能
+
 # D1数据库绑定
 [[d1_databases]]
 binding = "DB"
@@ -18,15 +25,16 @@ id = "3badd56b26fc44e486a23c542a2d7b8c"
 [vars]
 JWT_SECRET = "your-jwt-secret-key-replace-in-production"
 ENVIRONMENT = "development"
-CORS_ORIGIN = "https://home-list.pages.dev,http://localhost:5173"
+CORS_ORIGIN = "https://list.3331322.xyz,https://home-list.pages.dev,http://localhost:5173"
 
 # 生产环境配置
 [env.production]
-route = "api.your-domain.com/*"
+# 自定义域名路由 (需要在 Cloudflare Dashboard 手动配置)
+# route = "api.3331322.xyz/*"
 
 [env.production.vars]
 ENVIRONMENT = "production"
-CORS_ORIGIN = "https://home-list.pages.dev"
+CORS_ORIGIN = "https://list.3331322.xyz,https://home-list.pages.dev"
 
 # 开发环境配置
 [env.development]

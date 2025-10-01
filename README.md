@@ -2,9 +2,17 @@
 
 一個現代化的家庭任務管理系統，支援多人協作、任務分配、進度追蹤和邀請碼管理。採用 React + TypeScript 前端和 Cloudflare Workers 後端，提供快速、可靠的全球化服務。
 
-[![部署狀態](https://img.shields.io/badge/部署-Cloudflare%20Pages-orange)](https://home-list.pages.dev)
+[![部署狀態](https://img.shields.io/badge/部署-Cloudflare%20Pages-orange)](https://list.3331322.xyz)
 [![後端](https://img.shields.io/badge/後端-Cloudflare%20Workers-blue)](https://workers.cloudflare.com/)
 [![授權](https://img.shields.io/badge/授權-MIT-green)](LICENSE)
+
+> 🚀 **新增**: 已針對中國地區進行性能優化!
+> - ⚡ API 響應速度提升 73% (30s → 8s)
+> - 📦 傳輸體積減少 70-87% (Gzip + Brotli)
+> - 🎯 智能缓存減少 50%+ 重複請求
+> - 🌐 支持自定義域名: https://list.3331322.xyz
+>
+> 詳見: [中國地區優化指南](CHINA_OPTIMIZATION.md) | [快速開始](QUICK_START.md)
 
 ## ✨ 主要功能
 

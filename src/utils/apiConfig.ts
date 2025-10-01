@@ -15,16 +15,16 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     baseUrl: 'https://home-list-api.dylan-chiang.workers.dev',
     priority: 1,
     healthCheck: '/health',
-    timeout: 10000,
-    retries: 3
+    timeout: 5000, // 缩短到5秒,快速失败
+    retries: 2 // 减少重试次数
   },
   {
     name: 'Local Development',
     baseUrl: 'http://localhost:3001',
     priority: 2,
     healthCheck: '/health',
-    timeout: 5000,
-    retries: 2
+    timeout: 3000, // 本地更快
+    retries: 1
   },
   {
     name: 'Mock Server',
@@ -35,6 +35,16 @@ export const API_ENDPOINTS: ApiEndpoint[] = [
     retries: 1
   }
 ];
+
+// 注意: 如果配置了 Workers 自定义域名,可以添加:
+// {
+//   name: 'Custom Domain API',
+//   baseUrl: 'https://api.3331322.xyz',
+//   priority: 1,
+//   healthCheck: '/health',
+//   timeout: 4000,
+//   retries: 2
+// }
 
 // 当前活跃的API端点
 let currentEndpoint: ApiEndpoint = API_ENDPOINTS[0];

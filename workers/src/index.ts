@@ -2,6 +2,7 @@ import { Hono } from 'hono';
 import { cors } from 'hono/cors';
 import { logger } from 'hono/logger';
 import { prettyJSON } from 'hono/pretty-json';
+import { compress } from 'hono/compress';
 import { HTTPException } from 'hono/http-exception';
 
 // 导入路由
@@ -26,21 +27,31 @@ const app = new Hono<{ Bindings: Bindings }>();
 app.use('*', logger());
 app.use('*', prettyJSON());
 
-// CORS配置
+// 压缩中间件 (支持 gzip 和 brotli)
+app.use('*', compress({
+  threshold: 1024, // 大于 1KB 才压缩
+}));
+
+// CORS配置 (优化预检请求)
 app.use('*', async (c, next) => {
   const corsOrigin = c.env.CORS_ORIGIN || 'http://localhost:5173';
   const allowedOrigins = corsOrigin.split(',').map(origin => origin.trim());
-  
+
   return cors({
     origin: allowedOrigins,
     allowMethods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
     allowHeaders: ['Content-Type', 'Authorization'],
     credentials: true,
+    maxAge: 86400, // 预检请求缓存24小时,减少OPTIONS请求
   })(c, next);
 });
 
-// 健康检查端点
+// 健康检查端点 (快速响应,不查询数据库)
 app.get('/health', (c) => {
+  // 添加缓存头以加速中国地区访问
+  c.header('Cache-Control', 'public, max-age=60');
+  c.header('CDN-Cache-Control', 'public, max-age=60');
+
   return c.json({
     status: 'ok',
     timestamp: new Date().toISOString(),

@@ -1,0 +1,1 @@
+{"root":["./src/index.ts","./src/middleware/auth.ts","./src/models/types.ts","./src/routes/auth.ts","./src/routes/family.ts","./src/routes/migration.ts","./src/routes/tasks.ts","./src/utils/dataconverter.ts","./src/utils/helpers.ts","./vitest.config.ts"],"errors":true,"version":"5.9.2"}

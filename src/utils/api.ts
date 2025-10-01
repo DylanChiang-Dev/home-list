@@ -1,4 +1,5 @@
 import { getCurrentApiBase, switchToNextEndpoint, getCurrentEndpoint } from './apiConfig';
+import { apiCache, generateCacheKey } from './cache';
 
 // API配置（现在从配置管理器获取）
 function getApiBase(): string {
@@ -97,10 +98,10 @@ interface RetryConfig {
 }
 
 const DEFAULT_RETRY_CONFIG: RetryConfig = {
-  maxRetries: 3,
-  baseDelay: 1000, // 1秒
-  maxDelay: 10000, // 10秒
-  timeout: 30000, // 30秒超时
+  maxRetries: 2, // 减少到2次,快速失败
+  baseDelay: 500, // 缩短到500ms
+  maxDelay: 3000, // 缩短到3秒
+  timeout: 8000, // 缩短到8秒,中国地区需要快速响应
   enableEndpointSwitching: true,
 };
 
@@ -317,62 +318,106 @@ export const apiRequest = async <T>(
 
 // 快速重试配置（用于关键API调用）
 const FAST_RETRY_CONFIG: Partial<RetryConfig> = {
-  maxRetries: 2,
-  baseDelay: 500,
-  timeout: 15000, // 15秒超时
+  maxRetries: 1,
+  baseDelay: 300,
+  timeout: 5000, // 5秒超时,快速失败
   enableEndpointSwitching: true,
 };
 
 // 慢速重试配置（用于非关键API调用）
 const SLOW_RETRY_CONFIG: Partial<RetryConfig> = {
   maxRetries: 1,
-  baseDelay: 2000,
-  timeout: 45000, // 45秒超时
+  baseDelay: 1000,
+  timeout: 12000, // 12秒超时
   enableEndpointSwitching: true,
 };
 
 export const apiGet = async <T>(
-  endpoint: string, 
-  options: { fast?: boolean } = {}
+  endpoint: string,
+  options: { fast?: boolean; cache?: boolean; cacheTTL?: number } = {}
 ): Promise<ApiResponse<T>> => {
+  // 检查缓存
+  if (options.cache) {
+    const cacheKey = generateCacheKey(endpoint);
+    const cached = apiCache.get<ApiResponse<T>>(cacheKey);
+    if (cached) {
+      console.log(`[Cache Hit] ${endpoint}`);
+      return cached;
+    }
+  }
+
   const url = `${getApiBase()}${endpoint}`;
   const retryConfig = options.fast ? FAST_RETRY_CONFIG : DEFAULT_RETRY_CONFIG;
-  return apiRequest<T>(url, { method: 'GET' }, retryConfig);
+  const response = await apiRequest<T>(url, { method: 'GET' }, retryConfig);
+
+  // 缓存成功的响应
+  if (options.cache && response.success) {
+    const cacheKey = generateCacheKey(endpoint);
+    const ttl = options.cacheTTL || 60000; // 默认60秒
+    apiCache.set(cacheKey, response, ttl);
+    console.log(`[Cache Set] ${endpoint} (TTL: ${ttl}ms)`);
+  }
+
+  return response;
 };
 
 export const apiPost = async <T>(
   endpoint: string,
   data?: any,
-  options: { fast?: boolean } = {}
+  options: { fast?: boolean; invalidateCache?: string } = {}
 ): Promise<ApiResponse<T>> => {
   const url = `${getApiBase()}${endpoint}`;
   const retryConfig = options.fast ? FAST_RETRY_CONFIG : DEFAULT_RETRY_CONFIG;
-  return apiRequest<T>(url, {
+  const response = await apiRequest<T>(url, {
     method: 'POST',
     body: data ? JSON.stringify(data) : undefined,
   }, retryConfig);
+
+  // POST成功后清除相关缓存
+  if (response.success && options.invalidateCache) {
+    apiCache.clearByPrefix(options.invalidateCache);
+    console.log(`[Cache Invalidated] ${options.invalidateCache}`);
+  }
+
+  return response;
 };
 
 export const apiPut = async <T>(
   endpoint: string,
   data?: any,
-  options: { fast?: boolean } = {}
+  options: { fast?: boolean; invalidateCache?: string } = {}
 ): Promise<ApiResponse<T>> => {
   const url = `${getApiBase()}${endpoint}`;
   const retryConfig = options.fast ? FAST_RETRY_CONFIG : DEFAULT_RETRY_CONFIG;
-  return apiRequest<T>(url, {
+  const response = await apiRequest<T>(url, {
     method: 'PUT',
     body: data ? JSON.stringify(data) : undefined,
   }, retryConfig);
+
+  // PUT成功后清除相关缓存
+  if (response.success && options.invalidateCache) {
+    apiCache.clearByPrefix(options.invalidateCache);
+    console.log(`[Cache Invalidated] ${options.invalidateCache}`);
+  }
+
+  return response;
 };
 
 export const apiDelete = async <T>(
   endpoint: string,
-  options: { fast?: boolean } = {}
+  options: { fast?: boolean; invalidateCache?: string } = {}
 ): Promise<ApiResponse<T>> => {
   const url = `${getApiBase()}${endpoint}`;
   const retryConfig = options.fast ? FAST_RETRY_CONFIG : DEFAULT_RETRY_CONFIG;
-  return apiRequest<T>(url, { method: 'DELETE' }, retryConfig);
+  const response = await apiRequest<T>(url, { method: 'DELETE' }, retryConfig);
+
+  // DELETE成功后清除相关缓存
+  if (response.success && options.invalidateCache) {
+    apiCache.clearByPrefix(options.invalidateCache);
+    console.log(`[Cache Invalidated] ${options.invalidateCache}`);
+  }
+
+  return response;
 };
 
 // 健康检查API（用于测试连接）
